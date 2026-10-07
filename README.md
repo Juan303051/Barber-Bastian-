@@ -1,46 +1,39 @@
-# NEXORA — Personal Life OS
+# JARVIS · NEXORA
 
-NEXORA es un organizador personal inteligente: ayuda a convertir todo lo que una persona tiene pendiente en un plan diario claro, realista y accionable. Las metas, estudio, dinero, hábitos y enfoque sirven como contexto para que NEXORA AI pueda reorganizar el día.
+Asistente personal y de estudio para **Mac** e **iPhone 17**. App nativa (SwiftUI), privada, hecha para una sola persona, siempre disponible y **offline-first**: funciona sin internet con lo que ya tiene guardado y se actualiza cuando hay conexión.
 
-## Ejecutar en VS Code
+> Tu siguiente movimiento empieza aquí.
 
-Requisitos:
-- Node.js 20+ recomendado
-- VS Code
+## Qué es
 
-Pasos:
+Una sola app que combina:
 
-```bash
-npm install
-npm run dev
-```
+1. **NEXORA** — organizador del día: tareas, metas, hábitos, dinero, enfoque.
+2. **Jarvis** — asistente de voz: dices "Jarvis" y te escucha.
+3. **Modo Estudiante** — todo lo que necesita un estudiante aplicado: horario, materias, entregas, apuntes, repaso y simulacros.
+4. **Taller de documentos** — subes la guía o el enunciado de un trabajo y Jarvis prepara un **borrador** con tus datos y tus apuntes, listo para que lo revises y lo entregues.
+5. **Guía de usuario** integrada — NEXORA se explica a sí misma.
 
-Luego abre la dirección que muestre Vite, normalmente `http://localhost:5173`.
+## Principios
 
-Para probar el build de producción:
+- **Offline primero.** Datos locales (SwiftData) + IA local. La nube es un extra, nunca un requisito.
+- **Una sola persona.** Sin cuentas ni servidores propios. Sincroniza entre Mac e iPhone con iCloud privado.
+- **Intensidad dinámica.** Jarvis ajusta el tono y la carga del día según cuántas cosas tienes.
+- **Siempre un siguiente paso concreto.** Menos saturación, más claridad.
+- **Tú firmas lo que entregas.** Los documentos son borradores asistidos que tú revisas (ver `docs/PRIVACIDAD_Y_USO_ACADEMICO.md`).
 
-```bash
-npm run build
-npm run preview
-```
+## Documentación
 
-## Qué incluye
+| Documento | Para qué |
+|---|---|
+| [`docs/FUNCIONES.md`](docs/FUNCIONES.md) | Qué hace la app, módulo por módulo |
+| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Cómo está construida |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Fases de construcción |
+| [`docs/SETUP_XCODE.md`](docs/SETUP_XCODE.md) | Cómo compilar e instalar en Mac e iPhone |
+| [`docs/GUIA_USUARIO.md`](docs/GUIA_USUARIO.md) | Guía de uso (base de la ayuda dentro de la app) |
+| [`docs/PRIVACIDAD_Y_USO_ACADEMICO.md`](docs/PRIVACIDAD_Y_USO_ACADEMICO.md) | Datos, permisos y uso académico responsable |
+| [`prototipo-web/`](prototipo-web) | Prototipo React/Vite que sirve de referencia de diseño y funciones |
 
-- Splash de entrada animado con identidad NEXORA.
-- Dashboard centrado en el flujo diario y el “Plan Inteligente”.
-- Botón “Organizar mi día” para reordenar pendientes por prioridad y tiempo estimado.
-- Dashboard responsive con microinteracciones.
-- Metas con progreso.
-- Tareas con filtros y persistencia.
-- Módulo de estudio.
-- Finanzas con métricas y gráfico SVG.
-- Temporizador Focus de 25 minutos.
-- Círculo personal.
-- Asistente NEXORA AI local/demo orientado a reorganizar pendientes y convertir intención en acciones.
-- Ajustes de perfil y tema oscuro/claro.
-- Persistencia completa con `localStorage`.
-- Diseño responsive para escritorio y móvil.
+## Estado
 
-## Nota sobre IA real
-
-El asistente incluido es una versión local/demo para que el proyecto funcione sin claves externas. Para conectarlo a un modelo real, crea un backend seguro (por ejemplo Node/Express o una API route) y guarda la clave del proveedor únicamente en el servidor.
+Fase 0: documentación y prototipo de diseño. La app nativa aún no está construida. Ver el roadmap.
