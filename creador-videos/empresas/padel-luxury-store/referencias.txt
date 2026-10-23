@@ -1,0 +1,2 @@
+# Un enlace por línea. Después de # va por qué lo guardas (gancho, ritmo, edición, tema…).
+# Ejemplo:  https://www.tiktok.com/@cuenta/video/123  # gancho de 1 s y corte seco al ritmo del audio

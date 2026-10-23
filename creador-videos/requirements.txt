@@ -1,0 +1,4 @@
+yt-dlp[default,curl-cffi]
+faster-whisper
+# faster-whisper 1.2.1 llama a av.open(metadata_errors=...), que av 17+ eliminó.
+av<17

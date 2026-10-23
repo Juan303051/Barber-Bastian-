@@ -1,0 +1,4 @@
+.venv/
+__pycache__/
+# Los videos pesan: se quedan en tu Mac. Lo que se sube al repo son las métricas, los informes y las hojas de fotogramas.
+empresas/*/videos/
