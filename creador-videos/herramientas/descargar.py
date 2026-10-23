@@ -22,7 +22,7 @@ def _meta(info: dict, tipo: str) -> dict:
     descripcion = info.get("description") or ""
     fecha = info.get("upload_date")
     return {
-        "id": f"{info['extractor_key'].lower()}-{info['id']}",
+        "id": f"{info['extractor_key']}-{info['id']}",  # igual que el nombre del archivo descargado
         "tipo": TIPOS[tipo],
         "url": info.get("webpage_url"),
         "plataforma": info["extractor_key"],

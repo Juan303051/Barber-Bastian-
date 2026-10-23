@@ -6,3 +6,9 @@ empresas/*/videos/
 empresas/*/salidas/
 remotion/.cache/
 remotion/node_modules/
+# Obsidian guarda aquí el estado de tu ventana; solo se comparten sus dos ajustes de la bóveda.
+boveda/.obsidian/*
+!boveda/.obsidian/app.json
+!boveda/.obsidian/templates.json
+# Fotogramas generados de los videos. Pueden ser de otros creadores y el repositorio es público: no se suben salvo que tú lo decidas.
+boveda/02-empresas/*/medios/

@@ -1,3 +1,8 @@
+---
+tipo: "ficha"
+empresa: "cositas-chulas-kids"
+nombre: "Cositas Chulas Kids"
+---
 # Cositas Chulas Kids
 
 - **Qué vende:**

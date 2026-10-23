@@ -1,4 +1,9 @@
-# Masa Motos
+---
+tipo: "ficha"
+empresa: "mundial-de-motos"
+nombre: "Mundial de Motos"
+---
+# Mundial de Motos
 
 - **Qué vende:**
 - **Público:**

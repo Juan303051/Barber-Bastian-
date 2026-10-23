@@ -1,4 +1,4 @@
-"""Punto de entrada: ./creador descargar | analizar | informe | todo | render | estudio"""
+"""Punto de entrada: ./creador descargar | analizar | informe | todo | validar | render | estudio"""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ from comun import empresas, nombre
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["descargar", "analizar", "informe", "todo", "render", "estudio"])
+    ap.add_argument("accion", choices=["descargar", "analizar", "informe", "todo", "validar", "render", "estudio"])
     ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
     ap.add_argument("--solo-metadatos", action="store_true", help="descargar: solo vistas, likes y textos, sin el video")
@@ -29,6 +29,10 @@ def main() -> int:
         carpeta = empresas(a.empresa)[0]
         return (render if a.accion == "render" else estudio)(carpeta, a.guion)
 
+    if a.accion == "validar":
+        from boveda import validar
+        return 1 if validar() else 0
+
     for carpeta in empresas(a.empresa):
         print(f"\n== {nombre(carpeta)} ==")
         if a.accion in ("descargar", "todo"):
@@ -39,9 +43,12 @@ def main() -> int:
             n = analizar(carpeta, a.umbral, not a.sin_voz, a.modelo_voz, a.forzar)
             print(f"  {n} videos analizados")
         if a.accion in ("informe", "todo"):
-            from informe import informe
-            salida = informe(carpeta)
-            print(f"  informe: {salida.relative_to(carpeta.parent.parent)}" if salida else "  sin análisis todavía")
+            from notas import generar
+            print(f"  {generar(carpeta)} notas escritas en la bóveda")
+    if a.accion in ("informe", "todo") and not a.solo_metadatos:
+        from boveda import validar
+        print("\n== Revisión de la bóveda ==")
+        return 1 if validar() else 0
     return 0
 
 

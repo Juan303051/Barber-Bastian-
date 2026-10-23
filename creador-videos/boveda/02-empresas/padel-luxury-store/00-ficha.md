@@ -1,4 +1,9 @@
-# Tu Licencia
+---
+tipo: "ficha"
+empresa: "padel-luxury-store"
+nombre: "Pádel Luxury Store"
+---
+# Pádel Luxury Store
 
 - **Qué vende:**
 - **Público:**

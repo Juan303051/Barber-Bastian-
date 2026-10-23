@@ -1,4 +1,9 @@
-# Al volante
+---
+tipo: "ficha"
+empresa: "tu-licencia"
+nombre: "Tu Licencia"
+---
+# Tu Licencia
 
 - **Qué vende:**
 - **Público:**

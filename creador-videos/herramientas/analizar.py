@@ -6,7 +6,7 @@ import re
 import statistics
 from pathlib import Path
 
-from comun import TIPOS, carpeta_analisis, correr, nombre, videos
+from comun import TIPOS, boveda_empresa, carpeta_analisis, correr, escribir_atomico, nombre, seguro, videos
 
 _whisper = {"modelo": None, "fallo": False}
 
@@ -82,34 +82,51 @@ def _voz(ruta: Path, duracion: float, modelo: str) -> dict | None:
         if _whisper["modelo"] is None:
             from faster_whisper import WhisperModel
             _whisper["modelo"] = WhisperModel(modelo, compute_type="int8")
-        segmentos, info = _whisper["modelo"].transcribe(str(ruta), vad_filter=True)
+        segmentos, info = _whisper["modelo"].transcribe(str(ruta), vad_filter=True, word_timestamps=True)
+        segmentos = list(segmentos)
+        palabras = [[round(w.start, 2), round(w.end, 2), w.word.strip()] for s in segmentos for w in (s.words or [])]
         segmentos = [{"ini": round(s.start, 1), "fin": round(s.end, 1), "texto": s.text.strip()}
                      for s in segmentos]
     except Exception as error:  # sin el paquete, sin modelo descargado o sin internet
         _whisper["fallo"] = True
         print(f"  (sin transcripción: {str(error).splitlines()[0][:120]}; sigo sin ella)")
         return None
-    palabras = sum(len(s["texto"].split()) for s in segmentos)
+    n_palabras = sum(len(s["texto"].split()) for s in segmentos)
     return {
         "idioma": info.language,
-        "palabras_por_min": round(palabras / duracion * 60) if duracion else None,
+        "palabras_por_min": round(n_palabras / duracion * 60) if duracion else None,
         "gancho_texto": " ".join(s["texto"] for s in segmentos if s["ini"] < 3.5),
         "segmentos": segmentos,
+        "palabras": palabras,  # [inicio, fin, palabra]: sirve para medir el ritmo de los subtítulos
     }
 
 
-def _imagenes(ruta: Path, datos: dict, destino: Path, stem: str) -> dict:
+MAX_PLANOS = 80
+
+
+def _imagenes(ruta: Path, datos: dict, medios: Path, cortes: list[float]) -> dict:
+    """Guarda en la bóveda tres cosas: el gancho, una hoja del video entero y un fotograma por plano."""
+    medios.mkdir(parents=True, exist_ok=True)
     ancho = 180 if datos["alto"] > datos["ancho"] else 320
-    gancho, hoja = destino / f"{stem}-gancho.jpg", destino / f"{stem}-hoja.jpg"
+    duracion = datos["duracion"]
     # Seis segundos iniciales, dos fotogramas por segundo: lo que decide si te quedas o deslizas.
     correr(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-t", "6", "-i", str(ruta), "-vf",
-            f"fps=2,scale={ancho}:-2,tile=6x2", "-frames:v", "1", "-q:v", "4", str(gancho)])
+            f"fps=2,scale={ancho}:-2,tile=6x2", "-frames:v", "1", "-q:v", "4", str(medios / "gancho.jpg")])
     # Veinticuatro fotogramas repartidos en todo el video.
     correr(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(ruta), "-vf",
-            f"fps=24/{max(datos['duracion'], 1)},scale={ancho}:-2,tile=6x4", "-frames:v", "1",
-            "-q:v", "4", str(hoja)])
-    return {"gancho": gancho.name if gancho.exists() else None,
-            "hoja": hoja.name if hoja.exists() else None}
+            f"fps=24/{max(duracion, 1)},scale={ancho}:-2,tile=6x4", "-frames:v", "1",
+            "-q:v", "4", str(medios / "hoja.jpg")])
+    # Un fotograma por plano, tomado poco después de que empieza.
+    limites = [0.0] + cortes + [duracion]
+    planos = []
+    for n, (ini, fin) in enumerate(list(zip(limites, limites[1:]))[:MAX_PLANOS], start=1):
+        if fin <= ini:
+            continue
+        archivo = f"plano-{n:02d}.jpg"
+        correr(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{ini + min(0.4, (fin - ini) / 2):.2f}",
+                "-i", str(ruta), "-frames:v", "1", "-vf", f"scale={ancho + 60}:-2", "-q:v", "5", str(medios / archivo)])
+        planos.append({"n": n, "ini": round(ini, 2), "fin": round(fin, 2), "imagen": archivo})
+    return {"gancho": "gancho.jpg", "hoja": "hoja.jpg", "planos": planos}
 
 
 def analizar(carpeta: Path, umbral: float, con_voz: bool, modelo_voz: str, forzar: bool) -> int:
@@ -125,17 +142,18 @@ def analizar(carpeta: Path, umbral: float, con_voz: bool, modelo_voz: str, forza
             if not datos["duracion"]:
                 print("    no se pudo leer el video; lo salto")
                 continue
+            cortes = _cortes(ruta, umbral)
             resultado = {
                 "id": ruta.stem,
                 "tipo": etiqueta,
                 "archivo": f"videos/{tipo}/{ruta.name}",
                 **{k: datos[k] for k in ("duracion", "ancho", "alto", "fps")},
                 "vertical": datos["alto"] > datos["ancho"],
-                "ritmo": _ritmo(_cortes(ruta, umbral), datos["duracion"]),
+                "ritmo": _ritmo(cortes, datos["duracion"]),
                 "audio": _audio(ruta, datos["duracion"]) if datos["tiene_audio"] else None,
                 "voz": _voz(ruta, datos["duracion"], modelo_voz) if con_voz and datos["tiene_audio"] else None,
-                "imagenes": _imagenes(ruta, datos, destino, ruta.stem),
+                "imagenes": _imagenes(ruta, datos, boveda_empresa(carpeta) / "medios" / seguro(ruta.stem), cortes),
             }
-            salida.write_text(json.dumps(resultado, ensure_ascii=False, indent=2), encoding="utf-8")
+            escribir_atomico(salida, json.dumps(resultado, ensure_ascii=False, indent=1))
             hechos += 1
     return hechos

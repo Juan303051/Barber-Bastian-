@@ -1,12 +1,14 @@
 """Rutas y utilidades compartidas por las herramientas."""
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 EMPRESAS = RAIZ / "empresas"
+BOVEDA = Path(os.environ.get("CREADOR_BOVEDA") or RAIZ / "boveda")
 EXTENSIONES = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 TIPOS = {"referencias": "referencia", "propios": "propio"}
 
@@ -21,8 +23,17 @@ def empresas(filtro: str | None = None) -> list[Path]:
     return carpetas
 
 
+def seguro(texto: str) -> str:
+    """Nombre apto para archivos y enlaces: sin espacios ni acentos."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", texto).strip("-")
+
+
+def boveda_empresa(carpeta: Path) -> Path:
+    return BOVEDA / "02-empresas" / carpeta.name
+
+
 def nombre(carpeta: Path) -> str:
-    ficha = carpeta / "README.md"
+    ficha = boveda_empresa(carpeta) / "00-ficha.md"
     if ficha.exists():
         for linea in ficha.read_text(encoding="utf-8").splitlines():
             if linea.startswith("# "):
@@ -58,6 +69,14 @@ def carpeta_analisis(carpeta: Path) -> Path:
     destino = carpeta / "analisis"
     destino.mkdir(exist_ok=True)
     return destino
+
+
+def escribir_atomico(ruta: Path, texto: str) -> None:
+    """Escribe en un temporal y lo renombra: si algo falla a medias, el archivo anterior queda intacto."""
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    temporal = ruta.with_name(ruta.name + ".tmp")
+    temporal.write_text(texto, encoding="utf-8")
+    os.replace(temporal, ruta)
 
 
 def correr(comando: list[str]) -> subprocess.CompletedProcess:
