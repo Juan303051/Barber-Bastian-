@@ -67,26 +67,27 @@ def preparar(carpeta: Path, indicado: str) -> tuple[Path, Path, Path]:
     return archivo, publica, guion
 
 
-def _remotion(args: list[str]) -> int:
+def _remotion(args: list[str], capturar: bool = False) -> subprocess.CompletedProcess:
     if not (REMOTION / "node_modules").exists():
         raise SystemExit("Falta instalar Remotion: ejecuta ./instalar.sh (o 'npm install' dentro de remotion/).")
     navegador = os.environ.get("CREADOR_NAVEGADOR")  # opcional: usar un Chrome/Chromium ya instalado
     extra = [f"--browser-executable={navegador}"] if navegador else []
-    return subprocess.run(["npx", "remotion", *args, *extra], cwd=REMOTION).returncode
+    return subprocess.run(["npx", "remotion", *args, *extra], cwd=REMOTION, capture_output=capturar, text=capturar)
 
 
-def render(carpeta: Path, indicado: str) -> int:
+def render(carpeta: Path, indicado: str, salida: Path | None = None, capturar: bool = False) -> subprocess.CompletedProcess:
     props, publica, guion = preparar(carpeta, indicado)
-    formato = json.loads(props.read_text(encoding="utf-8")).get("formato") or guion.stem
-    salida = carpeta / "salidas" / f"{formato}.mp4"
-    salida.parent.mkdir(exist_ok=True)
-    codigo = _remotion(["render", "src/index.ts", "Formato", str(salida),
-                        f"--props={props}", f"--public-dir={publica}"])
-    if codigo == 0:
+    if salida is None:
+        formato = json.loads(props.read_text(encoding="utf-8")).get("formato") or guion.stem
+        salida = carpeta / "salidas" / f"{formato}.mp4"
+    salida.parent.mkdir(parents=True, exist_ok=True)
+    resultado = _remotion(["render", "src/index.ts", "Formato", str(salida),
+                           f"--props={props}", f"--public-dir={publica}"], capturar)
+    if resultado.returncode == 0 and not capturar:
         print(f"\n  video: {salida.relative_to(RAIZ)}")
-    return codigo
+    return resultado
 
 
 def estudio(carpeta: Path, indicado: str) -> int:
     props, publica, _ = preparar(carpeta, indicado)
-    return _remotion(["studio", "src/index.ts", f"--props={props}", f"--public-dir={publica}"])
+    return _remotion(["studio", "src/index.ts", f"--props={props}", f"--public-dir={publica}"]).returncode

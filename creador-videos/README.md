@@ -1,5 +1,7 @@
 # Creador de videos
 
+**¿Primera vez? Empieza por [GUIA.md](GUIA.md).** Este archivo es la referencia.
+
 Herramientas para guardar videos de referencia por empresa, medir cómo están hechos, compararlos con los tuyos y **recordar lo aprendido en una bóveda de Obsidian**. Los videos se quedan en tu Mac; al repositorio suben las métricas y las notas (los fotogramas se quedan en tu Mac, porque el repositorio es público), que es lo que Claude lee para analizar y proponer. Reglas de trabajo de Claude: `CLAUDE.md`.
 
 ## Dos carpetas con dos funciones
@@ -25,6 +27,8 @@ Dentro de `empresas/<empresa>/`:
 ## Uso
 ```bash
 ./instalar.sh                          # una sola vez
+./creador probar                       # autodiagnóstico: dice si todo funciona y cómo arreglar lo que no (--rapido omite Remotion)
+./creador preparar                     # crea las carpetas donde soltar videos (también lo hace cada comando)
 ./creador todo                         # descarga, analiza, escribe las notas en la bóveda y la revisa
 ./creador todo --empresa al-volante    # solo una
 ./creador descargar --cookies-navegador safari   # si una red pide sesión
@@ -70,10 +74,31 @@ El video queda en `empresas/<empresa>/salidas/<formato>.mp4`. Un guion se ve as�
 - **Fotogramas:** una tira con los 6 primeros segundos (el gancho), una hoja con 24 fotogramas repartidos y **un fotograma por plano**, para que Claude vea la edición y no solo los números.
 - **Palabras con tiempo:** cada palabra con su segundo de inicio y fin, para medir el ritmo de los subtítulos y reconstruirlos en Remotion.
 
+## Qué falta para estar completo
+**De tu parte (datos y decisiones)**
+1. Completar la ficha de cada empresa (`boveda/02-empresas/<empresa>/00-ficha.md`): sin ella, las ideas parten de suposiciones.
+2. Un `marca.json` por empresa (colores, fuente, logo, usuario).
+3. Referencias: al menos 3 por empresa para que se puedan ver patrones, y los enlaces de tus videos ya publicados.
+4. Tomas en bruto de una empresa para la primera prueba real del estilo de las maquetas.
+5. Las estadísticas de tus cuentas (retención por segundo, envíos, comentarios): es lo único que dice qué funciona de verdad.
+6. Decidir si el repositorio pasa a privado (hoy es público) y si se prueba también el conector de InVideo.
+
+**De mi parte (por construir)**
+1. Las piezas del estilo de las maquetas en Remotion: subtítulos palabra por palabra con palabra clave y serif cursiva, antes y después, contadores, tarjetas flotantes, recuadro de foco y cierre con palabra clave.
+2. De video en bruto a guion en un solo paso (transcribir, corregir, generar el guion).
+3. Montaje a ráfagas sobre el pulso de la música.
+4. Texto detrás de la persona con un modelo de recorte (por probar); el texto pegado al suelo seguirá siendo manual.
+5. Cargar tus estadísticas en la bóveda y comparar contra las referencias.
+6. Pruebas automáticas en cada cambio (hoy el autodiagnóstico se ejecuta a mano con `./creador probar`).
+
+**Sin probar en un Mac** (solo se probó en Linux): `instalar.sh`, la descarga real de referencias, `estudio`, abrir la bóveda en Obsidian y la velocidad de la transcripción.
+
+**«Sin ningún error» no se puede prometer.** Lo que sí hay: autodiagnóstico (`probar`), validador de la bóveda, escritura que no deja archivos a medias y notas generadas que nunca pisan las escritas a mano. Las descargas de YouTube, TikTok e Instagram pueden fallar cuando esas redes cambian; se arregla actualizando `yt-dlp`.
+
 ## Límites
 - El algoritmo de cada red no es visible. Se infieren patrones de lo público (estructura, ritmo, métricas); la retención real solo la ves en las estadísticas de tus propias cuentas.
 - Desde la nube de Claude no se pueden bajar videos de las redes: YouTube y TikTok bloquean esas IP. Descarga en tu Mac. Los videos que envías por el chat sí llegan a la sesión de Claude.
 - Remotion es gratis para personas y empresas con hasta 3 empleados; una empresa mayor necesita licencia (remotion.pro).
 - Los videos ajenos son referencia para estudiar estructura, no material para republicar.
 - Los cortes se miden sobre el cuadro completo: en pantallas divididas o tomas continuas con gráficos encima el cambio real está en las capas y la cifra de cortes queda baja.
-- Verificado en Linux: análisis y transcripción con 4 videos reales (español e inglés), notas e informes en la bóveda, validador con ocho fallos provocados a propósito, lectura de metadatos de YouTube y render con Remotion (escenas, clips, subtítulos, logo, audio). Sin probar: `instalar.sh` (Homebrew), la descarga real en tu Mac, `estudio` en un Mac y abrir la bóveda en Obsidian.
+- Verificado en Linux (no en Mac): autodiagnóstico completo, análisis y transcripción con 4 videos reales en español e inglés, notas e informes en la bóveda, validador con fallos provocados a propósito, instalación desde cero en una copia limpia, lectura de metadatos de YouTube y render con Remotion (escenas, clips, subtítulos, logo, audio).

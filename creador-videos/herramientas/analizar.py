@@ -129,6 +129,26 @@ def _imagenes(ruta: Path, datos: dict, medios: Path, cortes: list[float]) -> dic
     return {"gancho": "gancho.jpg", "hoja": "hoja.jpg", "planos": planos}
 
 
+def medir_video(ruta: Path, etiqueta: str, archivo: str, umbral: float, con_voz: bool, modelo_voz: str,
+                medios: Path) -> dict | None:
+    """Todas las medidas de un video; None si no se puede leer."""
+    datos = _sondear(ruta)
+    if not datos["duracion"]:
+        return None
+    cortes = _cortes(ruta, umbral)
+    return {
+        "id": ruta.stem,
+        "tipo": etiqueta,
+        "archivo": archivo,
+        **{k: datos[k] for k in ("duracion", "ancho", "alto", "fps")},
+        "vertical": datos["alto"] > datos["ancho"],
+        "ritmo": _ritmo(cortes, datos["duracion"]),
+        "audio": _audio(ruta, datos["duracion"]) if datos["tiene_audio"] else None,
+        "voz": _voz(ruta, datos["duracion"], modelo_voz) if con_voz and datos["tiene_audio"] else None,
+        "imagenes": _imagenes(ruta, datos, medios, cortes),
+    }
+
+
 def analizar(carpeta: Path, umbral: float, con_voz: bool, modelo_voz: str, forzar: bool) -> int:
     destino = carpeta_analisis(carpeta)
     hechos = 0
@@ -138,22 +158,11 @@ def analizar(carpeta: Path, umbral: float, con_voz: bool, modelo_voz: str, forza
             if salida.exists() and not forzar:
                 continue
             print(f"  · {nombre(carpeta)} / {ruta.name}")
-            datos = _sondear(ruta)
-            if not datos["duracion"]:
+            resultado = medir_video(ruta, etiqueta, f"videos/{tipo}/{ruta.name}", umbral, con_voz, modelo_voz,
+                                    boveda_empresa(carpeta) / "medios" / seguro(ruta.stem))
+            if resultado is None:
                 print("    no se pudo leer el video; lo salto")
                 continue
-            cortes = _cortes(ruta, umbral)
-            resultado = {
-                "id": ruta.stem,
-                "tipo": etiqueta,
-                "archivo": f"videos/{tipo}/{ruta.name}",
-                **{k: datos[k] for k in ("duracion", "ancho", "alto", "fps")},
-                "vertical": datos["alto"] > datos["ancho"],
-                "ritmo": _ritmo(cortes, datos["duracion"]),
-                "audio": _audio(ruta, datos["duracion"]) if datos["tiene_audio"] else None,
-                "voz": _voz(ruta, datos["duracion"], modelo_voz) if con_voz and datos["tiene_audio"] else None,
-                "imagenes": _imagenes(ruta, datos, boveda_empresa(carpeta) / "medios" / seguro(ruta.stem), cortes),
-            }
             escribir_atomico(salida, json.dumps(resultado, ensure_ascii=False, indent=1))
             hechos += 1
     return hechos

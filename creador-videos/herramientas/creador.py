@@ -1,15 +1,15 @@
-"""Punto de entrada: ./creador descargar | analizar | informe | todo | validar | render | estudio"""
+"""Punto de entrada: ./creador preparar | probar | descargar | analizar | informe | todo | validar | render | estudio"""
 from __future__ import annotations
 
 import argparse
 import sys
 
-from comun import empresas, nombre
+from comun import asegurar_carpetas, empresas, nombre
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["descargar", "analizar", "informe", "todo", "validar", "render", "estudio"])
+    ap.add_argument("accion", choices=["preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "render", "estudio"])
     ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
     ap.add_argument("--solo-metadatos", action="store_true", help="descargar: solo vistas, likes y textos, sin el video")
@@ -19,15 +19,25 @@ def main() -> int:
     ap.add_argument("--umbral", type=float, default=0.3, help="analizar: sensibilidad de corte, 0.1 detecta más, 0.5 menos")
     ap.add_argument("--sin-voz", action="store_true", help="analizar: no transcribir")
     ap.add_argument("--modelo-voz", default="base", help="analizar: tiny, base, small, medium")
+    ap.add_argument("--rapido", action="store_true", help="probar: omite la prueba de Remotion (la más lenta)")
     ap.add_argument("--forzar", action="store_true", help="analizar: rehacer lo ya analizado")
     a = ap.parse_args()
+    asegurar_carpetas()
+
+    if a.accion == "preparar":
+        print("Carpetas listas: en cada empresa ya puedes soltar videos en videos/referencias/ y videos/propios/.")
+        return 0
+
+    if a.accion == "probar":
+        from diagnostico import probar
+        return probar(a.rapido)
 
     if a.accion in ("render", "estudio"):
         if not a.empresa or not a.guion:
             ap.error(f"{a.accion} necesita --empresa y el guion: ./creador {a.accion} <guion> --empresa <empresa>")
         from render import estudio, render
         carpeta = empresas(a.empresa)[0]
-        return (render if a.accion == "render" else estudio)(carpeta, a.guion)
+        return render(carpeta, a.guion).returncode if a.accion == "render" else estudio(carpeta, a.guion)
 
     if a.accion == "validar":
         from boveda import validar

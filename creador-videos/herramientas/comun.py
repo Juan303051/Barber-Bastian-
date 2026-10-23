@@ -71,6 +71,13 @@ def carpeta_analisis(carpeta: Path) -> Path:
     return destino
 
 
+def asegurar_carpetas() -> None:
+    """Git no guarda carpetas vacías: se crean aquí las que el usuario necesita para soltar videos y recibir resultados."""
+    for carpeta in empresas():
+        for sub in ("videos/referencias", "videos/propios", "analisis", "formatos", "salidas"):
+            (carpeta / sub).mkdir(parents=True, exist_ok=True)
+
+
 def escribir_atomico(ruta: Path, texto: str) -> None:
     """Escribe en un temporal y lo renombra: si algo falla a medias, el archivo anterior queda intacto."""
     ruta.parent.mkdir(parents=True, exist_ok=True)

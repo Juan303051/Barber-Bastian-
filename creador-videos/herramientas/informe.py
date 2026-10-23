@@ -91,7 +91,7 @@ def informe(carpeta: Path) -> Path | None:
     base = boveda_empresa(carpeta)
     refs = [f for f in filas if f["tipo"] == "referencia"]
     propios = [f for f in filas if f["tipo"] == "propio"]
-    lineas = [frontmatter({"tipo": "informe", "empresa": slug, "generado": True, "fecha": date.today().isoformat()}),
+    lineas = [frontmatter({"tipo": "informe", "empresa": slug, "generado": True}),
               f"# Informe — {nombre(carpeta)}", "",
               f"> Generado por `./creador informe`; se reescribe solo, no lo edites.", ""]
     if refs and propios:

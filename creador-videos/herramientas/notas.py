@@ -1,7 +1,6 @@
 """Genera en la bóveda una nota por video y el informe de cada empresa."""
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 from boveda import escribir_generado, frontmatter
@@ -29,7 +28,7 @@ def _nota(fila: dict, slug: str, base: Path) -> str:
         "etiquetas": [fila["tipo"], slug],
     }
     texto = [frontmatter(propiedades), f"# {titulo}", "",
-             f"> Nota generada por `./creador informe` el {date.today().isoformat()}; se reescribe sola, no la edites. "
+             f"> Nota generada por `./creador informe`; se reescribe sola, no la edites. "
              + (f"Lectura detallada: [[02-empresas/{slug}/analisis/{nota_id}]]."
                 if (base / "analisis" / f"{nota_id}.md").exists()
                 else f"Falta la lectura detallada: crea `analisis/{nota_id}.md` con la plantilla de análisis."), ""]
