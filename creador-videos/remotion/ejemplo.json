@@ -1,0 +1,9 @@
+{
+  "formato": "ejemplo",
+  "escenas": [
+    { "tipo": "gancho", "duracion": 2, "texto": "¿Sabías esto?" },
+    { "tipo": "contenido", "duracion": 3, "texto": "Una sola idea por toma" },
+    { "tipo": "cta", "duracion": 2, "texto": "Síguenos" }
+  ],
+  "subtitulos": [{ "ini": 2.2, "fin": 4.8, "texto": "Subtítulo de prueba" }]
+}

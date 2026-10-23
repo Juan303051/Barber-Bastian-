@@ -2,3 +2,7 @@
 __pycache__/
 # Los videos pesan: se quedan en tu Mac. Lo que se sube al repo son las métricas, los informes y las hojas de fotogramas.
 empresas/*/videos/
+# Videos generados con Remotion y su carpeta de trabajo temporal.
+empresas/*/salidas/
+remotion/.cache/
+remotion/node_modules/

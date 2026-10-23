@@ -1,4 +1,4 @@
-"""Punto de entrada: ./creador descargar | analizar | informe | todo"""
+"""Punto de entrada: ./creador descargar | analizar | informe | todo | render | estudio"""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,8 @@ from comun import empresas, nombre
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["descargar", "analizar", "informe", "todo"])
+    ap.add_argument("accion", choices=["descargar", "analizar", "informe", "todo", "render", "estudio"])
+    ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
     ap.add_argument("--solo-metadatos", action="store_true", help="descargar: solo vistas, likes y textos, sin el video")
     ap.add_argument("--cookies-navegador", metavar="NAVEGADOR", help="descargar: safari, chrome, firefox… (para videos que piden sesión)")
@@ -20,6 +21,13 @@ def main() -> int:
     ap.add_argument("--modelo-voz", default="base", help="analizar: tiny, base, small, medium")
     ap.add_argument("--forzar", action="store_true", help="analizar: rehacer lo ya analizado")
     a = ap.parse_args()
+
+    if a.accion in ("render", "estudio"):
+        if not a.empresa or not a.guion:
+            ap.error(f"{a.accion} necesita --empresa y el guion: ./creador {a.accion} <guion> --empresa <empresa>")
+        from render import estudio, render
+        carpeta = empresas(a.empresa)[0]
+        return (render if a.accion == "render" else estudio)(carpeta, a.guion)
 
     for carpeta in empresas(a.empresa):
         print(f"\n== {nombre(carpeta)} ==")
