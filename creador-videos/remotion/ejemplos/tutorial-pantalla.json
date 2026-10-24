@@ -1,0 +1,62 @@
+{
+  "formato": "tutorial-pantalla",
+  "escenas": [
+    {
+      "tipo": "gancho",
+      "duracion": 2.5,
+      "texto": "Esto te ahorra horas"
+    },
+    {
+      "tipo": "pantalla",
+      "duracion": 6.5,
+      "zoom": {
+        "escala": 1.6,
+        "x": 40,
+        "y": 40
+      },
+      "focos": [
+        {
+          "x": 18,
+          "y": 22,
+          "ancho": 38,
+          "alto": 14,
+          "ini": 1.0,
+          "fin": 3.2
+        },
+        {
+          "x": 40,
+          "y": 52,
+          "ancho": 28,
+          "alto": 13,
+          "ini": 3.6,
+          "fin": 6.0
+        }
+      ]
+    },
+    {
+      "tipo": "cta",
+      "duracion": 3,
+      "clave": "EDITOR",
+      "texto": "y te mando el link"
+    }
+  ],
+  "palabras": [
+    [2.7, 3.18, "Elegimos"],
+    [3.21, 3.45, "el"],
+    [3.48, 3.96, "programa,"],
+    [4.1, 4.34, "le"],
+    [4.37, 4.73, "damos"],
+    [4.76, 4.96, "a"],
+    [4.99, 5.51, "continuar"],
+    [5.54, 5.74, "y"],
+    [5.77, 6.13, "listo,"],
+    [6.27, 6.51, "ya"],
+    [6.54, 6.86, "está"],
+    [6.89, 7.41, "conectado."]
+  ],
+  "estiloPalabras": {
+    "maxPalabras": 3,
+    "claves": ["listo", "conectado"],
+    "posicion": "abajo"
+  }
+}

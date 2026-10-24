@@ -1,0 +1,20 @@
+{
+  "name": "creador-videos-remotion",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "tipos": "tsc --noEmit",
+    "probar": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types src/logica.test.mts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.538",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.538"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "5.9.3",
+    "@types/node": "^22.0.0"
+  }
+}

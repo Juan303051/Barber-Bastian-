@@ -1,0 +1,12 @@
+yt-dlp[default,curl-cffi]
+pyyaml
+faster-whisper
+# faster-whisper 1.2.1 llama a av.open(metadata_errors=...), que av 17+ eliminó.
+av<17
+# La app Iris (./creador app)
+fastapi
+uvicorn
+httpx
+numpy
+# El director con IA (opcional en uso: sin clave, la app funciona con reglas)
+anthropic

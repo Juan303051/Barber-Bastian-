@@ -1,0 +1,7 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+if [ ! -x .venv/bin/python ]; then
+  echo "Falta instalar: ejecuta primero ./instalar.sh"
+  exit 1
+fi
+exec .venv/bin/python herramientas/creador.py "$@"

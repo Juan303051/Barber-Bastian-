@@ -1,0 +1,870 @@
+{
+ "id": "kevinvelasquez-tour-casa",
+ "tipo": "referencia",
+ "archivo": "videos/referencias/kevinvelasquez-tour-casa.mp4",
+ "duracion": 87.6,
+ "ancho": 576,
+ "alto": 1024,
+ "fps": 30.0,
+ "vertical": true,
+ "ritmo": {
+  "n_cortes": 39,
+  "cortes": [
+   9.03,
+   11.37,
+   12.6,
+   13.63,
+   13.9,
+   14.53,
+   14.93,
+   15.2,
+   15.63,
+   16.0,
+   16.33,
+   16.6,
+   17.0,
+   17.27,
+   17.53,
+   17.8,
+   18.07,
+   18.8,
+   19.73,
+   20.27,
+   22.63,
+   23.03,
+   23.3,
+   23.6,
+   23.9,
+   24.43,
+   33.7,
+   48.8,
+   53.9,
+   54.2,
+   54.47,
+   54.77,
+   55.03,
+   55.37,
+   55.63,
+   55.9,
+   57.8,
+   62.03,
+   71.43
+  ],
+  "plano_medio": 2.19,
+  "plano_mediano": 0.4,
+  "cortes_por_10s": 4.45,
+  "primer_corte": 9.03,
+  "cortes_en_gancho": 0,
+  "curva_5s": [
+   0,
+   1,
+   6,
+   12,
+   7,
+   0,
+   1,
+   0,
+   0,
+   1,
+   4,
+   5,
+   1,
+   0,
+   1,
+   0,
+   0,
+   0
+  ]
+ },
+ "audio": {
+  "lufs": -14.5,
+  "rango_lu": 6.0,
+  "pico_db": -0.6,
+  "silencio_pct": 0.5
+ },
+ "voz": {
+  "idioma": "es",
+  "palabras_por_min": 65,
+  "gancho_texto": "El verdadero lujo no siempre hace ruido. A veces se tiene que cruzar una puerta como esta.",
+  "segmentos": [
+   {
+    "ini": 0.0,
+    "fin": 2.6,
+    "texto": "El verdadero lujo no siempre hace ruido."
+   },
+   {
+    "ini": 3.0,
+    "fin": 7.1,
+    "texto": "A veces se tiene que cruzar una puerta como esta."
+   },
+   {
+    "ini": 24.8,
+    "fin": 27.9,
+    "texto": "Cuatro habitaciones y espacio de sobra."
+   },
+   {
+    "ini": 28.2,
+    "fin": 32.5,
+    "texto": "Alberca privada, gimnasio y todo sin salir de casa."
+   },
+   {
+    "ini": 38.8,
+    "fin": 40.2,
+    "texto": "Despacio ni hablamos."
+   },
+   {
+    "ini": 40.5,
+    "fin": 43.8,
+    "texto": "Esta casa se extiende prácticamente de punta a punta."
+   },
+   {
+    "ini": 44.4,
+    "fin": 46.8,
+    "texto": "Y hasta la cocina es inteligente."
+   },
+   {
+    "ini": 55.8,
+    "fin": 60.4,
+    "texto": "Y todo esto dentro de una de las comunidades más consolidadas de Playa del Carmen."
+   },
+   {
+    "ini": 60.4,
+    "fin": 65.8,
+    "texto": "Cerca del mar, cerca del centro y rodeado de propiedades que mantienen el nivel."
+   },
+   {
+    "ini": 66.1,
+    "fin": 75.4,
+    "texto": "Lo que le falta esta casa es que vengas a verlo."
+   },
+   {
+    "ini": 76.2,
+    "fin": 78.2,
+    "texto": "Escríbeme y agendemos una cita."
+   }
+  ],
+  "palabras": [
+   [
+    0.0,
+    0.32,
+    "El"
+   ],
+   [
+    0.32,
+    0.72,
+    "verdadero"
+   ],
+   [
+    0.72,
+    1.36,
+    "lujo"
+   ],
+   [
+    1.36,
+    1.8,
+    "no"
+   ],
+   [
+    1.8,
+    2.18,
+    "siempre"
+   ],
+   [
+    2.18,
+    2.36,
+    "hace"
+   ],
+   [
+    2.36,
+    2.62,
+    "ruido."
+   ],
+   [
+    3.0,
+    3.54,
+    "A"
+   ],
+   [
+    3.54,
+    3.84,
+    "veces"
+   ],
+   [
+    3.84,
+    4.66,
+    "se"
+   ],
+   [
+    4.66,
+    4.88,
+    "tiene"
+   ],
+   [
+    4.88,
+    5.02,
+    "que"
+   ],
+   [
+    5.02,
+    5.3,
+    "cruzar"
+   ],
+   [
+    5.3,
+    5.5,
+    "una"
+   ],
+   [
+    5.5,
+    5.92,
+    "puerta"
+   ],
+   [
+    5.92,
+    6.76,
+    "como"
+   ],
+   [
+    6.76,
+    7.14,
+    "esta."
+   ],
+   [
+    24.85,
+    25.13,
+    "Cuatro"
+   ],
+   [
+    25.13,
+    25.69,
+    "habitaciones"
+   ],
+   [
+    25.69,
+    26.27,
+    "y"
+   ],
+   [
+    26.27,
+    26.83,
+    "espacio"
+   ],
+   [
+    26.83,
+    27.37,
+    "de"
+   ],
+   [
+    27.37,
+    27.87,
+    "sobra."
+   ],
+   [
+    28.15,
+    28.67,
+    "Alberca"
+   ],
+   [
+    28.67,
+    29.19,
+    "privada,"
+   ],
+   [
+    29.65,
+    30.19,
+    "gimnasio"
+   ],
+   [
+    30.19,
+    30.91,
+    "y"
+   ],
+   [
+    30.91,
+    31.25,
+    "todo"
+   ],
+   [
+    31.25,
+    31.73,
+    "sin"
+   ],
+   [
+    31.73,
+    32.11,
+    "salir"
+   ],
+   [
+    32.11,
+    32.29,
+    "de"
+   ],
+   [
+    32.29,
+    32.51,
+    "casa."
+   ],
+   [
+    38.82,
+    39.4,
+    "Despacio"
+   ],
+   [
+    39.4,
+    39.68,
+    "ni"
+   ],
+   [
+    39.68,
+    40.16,
+    "hablamos."
+   ],
+   [
+    40.54,
+    40.74,
+    "Esta"
+   ],
+   [
+    40.74,
+    40.96,
+    "casa"
+   ],
+   [
+    40.96,
+    41.14,
+    "se"
+   ],
+   [
+    41.14,
+    41.48,
+    "extiende"
+   ],
+   [
+    41.48,
+    42.38,
+    "prácticamente"
+   ],
+   [
+    42.38,
+    42.68,
+    "de"
+   ],
+   [
+    42.68,
+    43.16,
+    "punta"
+   ],
+   [
+    43.16,
+    43.44,
+    "a"
+   ],
+   [
+    43.44,
+    43.76,
+    "punta."
+   ],
+   [
+    44.4,
+    44.6,
+    "Y"
+   ],
+   [
+    44.6,
+    44.84,
+    "hasta"
+   ],
+   [
+    44.84,
+    45.02,
+    "la"
+   ],
+   [
+    45.02,
+    45.42,
+    "cocina"
+   ],
+   [
+    45.42,
+    46.3,
+    "es"
+   ],
+   [
+    46.3,
+    46.8,
+    "inteligente."
+   ],
+   [
+    55.82,
+    56.02,
+    "Y"
+   ],
+   [
+    56.02,
+    56.22,
+    "todo"
+   ],
+   [
+    56.22,
+    56.58,
+    "esto"
+   ],
+   [
+    56.58,
+    57.12,
+    "dentro"
+   ],
+   [
+    57.12,
+    57.36,
+    "de"
+   ],
+   [
+    57.36,
+    57.52,
+    "una"
+   ],
+   [
+    57.52,
+    57.64,
+    "de"
+   ],
+   [
+    57.64,
+    57.8,
+    "las"
+   ],
+   [
+    57.8,
+    58.3,
+    "comunidades"
+   ],
+   [
+    58.3,
+    58.8,
+    "más"
+   ],
+   [
+    58.8,
+    59.54,
+    "consolidadas"
+   ],
+   [
+    59.54,
+    59.72,
+    "de"
+   ],
+   [
+    59.72,
+    59.96,
+    "Playa"
+   ],
+   [
+    59.96,
+    60.12,
+    "del"
+   ],
+   [
+    60.12,
+    60.38,
+    "Carmen."
+   ],
+   [
+    60.38,
+    61.2,
+    "Cerca"
+   ],
+   [
+    61.2,
+    61.38,
+    "del"
+   ],
+   [
+    61.38,
+    61.62,
+    "mar,"
+   ],
+   [
+    61.96,
+    62.36,
+    "cerca"
+   ],
+   [
+    62.36,
+    62.6,
+    "del"
+   ],
+   [
+    62.6,
+    62.98,
+    "centro"
+   ],
+   [
+    62.98,
+    63.32,
+    "y"
+   ],
+   [
+    63.32,
+    63.84,
+    "rodeado"
+   ],
+   [
+    63.84,
+    64.0,
+    "de"
+   ],
+   [
+    64.0,
+    64.58,
+    "propiedades"
+   ],
+   [
+    64.58,
+    64.76,
+    "que"
+   ],
+   [
+    64.76,
+    65.34,
+    "mantienen"
+   ],
+   [
+    65.34,
+    65.54,
+    "el"
+   ],
+   [
+    65.54,
+    65.82,
+    "nivel."
+   ],
+   [
+    66.12,
+    66.34,
+    "Lo"
+   ],
+   [
+    71.68,
+    71.8,
+    "que"
+   ],
+   [
+    71.8,
+    71.94,
+    "le"
+   ],
+   [
+    71.94,
+    72.24,
+    "falta"
+   ],
+   [
+    72.24,
+    72.58,
+    "esta"
+   ],
+   [
+    72.58,
+    72.94,
+    "casa"
+   ],
+   [
+    72.94,
+    74.1,
+    "es"
+   ],
+   [
+    74.1,
+    74.28,
+    "que"
+   ],
+   [
+    74.28,
+    74.78,
+    "vengas"
+   ],
+   [
+    74.78,
+    74.9,
+    "a"
+   ],
+   [
+    74.9,
+    75.38,
+    "verlo."
+   ],
+   [
+    76.22,
+    76.9,
+    "Escríbeme"
+   ],
+   [
+    76.9,
+    77.36,
+    "y"
+   ],
+   [
+    77.36,
+    77.84,
+    "agendemos"
+   ],
+   [
+    77.84,
+    77.98,
+    "una"
+   ],
+   [
+    77.98,
+    78.24,
+    "cita."
+   ]
+  ]
+ },
+ "imagenes": {
+  "gancho": "gancho.jpg",
+  "hoja": "hoja.jpg",
+  "planos": [
+   {
+    "n": 1,
+    "ini": 0.0,
+    "fin": 9.03,
+    "imagen": "plano-01.jpg"
+   },
+   {
+    "n": 2,
+    "ini": 9.03,
+    "fin": 11.37,
+    "imagen": "plano-02.jpg"
+   },
+   {
+    "n": 3,
+    "ini": 11.37,
+    "fin": 12.6,
+    "imagen": "plano-03.jpg"
+   },
+   {
+    "n": 4,
+    "ini": 12.6,
+    "fin": 13.63,
+    "imagen": "plano-04.jpg"
+   },
+   {
+    "n": 5,
+    "ini": 13.63,
+    "fin": 13.9,
+    "imagen": "plano-05.jpg"
+   },
+   {
+    "n": 6,
+    "ini": 13.9,
+    "fin": 14.53,
+    "imagen": "plano-06.jpg"
+   },
+   {
+    "n": 7,
+    "ini": 14.53,
+    "fin": 14.93,
+    "imagen": "plano-07.jpg"
+   },
+   {
+    "n": 8,
+    "ini": 14.93,
+    "fin": 15.2,
+    "imagen": "plano-08.jpg"
+   },
+   {
+    "n": 9,
+    "ini": 15.2,
+    "fin": 15.63,
+    "imagen": "plano-09.jpg"
+   },
+   {
+    "n": 10,
+    "ini": 15.63,
+    "fin": 16.0,
+    "imagen": "plano-10.jpg"
+   },
+   {
+    "n": 11,
+    "ini": 16.0,
+    "fin": 16.33,
+    "imagen": "plano-11.jpg"
+   },
+   {
+    "n": 12,
+    "ini": 16.33,
+    "fin": 16.6,
+    "imagen": "plano-12.jpg"
+   },
+   {
+    "n": 13,
+    "ini": 16.6,
+    "fin": 17.0,
+    "imagen": "plano-13.jpg"
+   },
+   {
+    "n": 14,
+    "ini": 17.0,
+    "fin": 17.27,
+    "imagen": "plano-14.jpg"
+   },
+   {
+    "n": 15,
+    "ini": 17.27,
+    "fin": 17.53,
+    "imagen": "plano-15.jpg"
+   },
+   {
+    "n": 16,
+    "ini": 17.53,
+    "fin": 17.8,
+    "imagen": "plano-16.jpg"
+   },
+   {
+    "n": 17,
+    "ini": 17.8,
+    "fin": 18.07,
+    "imagen": "plano-17.jpg"
+   },
+   {
+    "n": 18,
+    "ini": 18.07,
+    "fin": 18.8,
+    "imagen": "plano-18.jpg"
+   },
+   {
+    "n": 19,
+    "ini": 18.8,
+    "fin": 19.73,
+    "imagen": "plano-19.jpg"
+   },
+   {
+    "n": 20,
+    "ini": 19.73,
+    "fin": 20.27,
+    "imagen": "plano-20.jpg"
+   },
+   {
+    "n": 21,
+    "ini": 20.27,
+    "fin": 22.63,
+    "imagen": "plano-21.jpg"
+   },
+   {
+    "n": 22,
+    "ini": 22.63,
+    "fin": 23.03,
+    "imagen": "plano-22.jpg"
+   },
+   {
+    "n": 23,
+    "ini": 23.03,
+    "fin": 23.3,
+    "imagen": "plano-23.jpg"
+   },
+   {
+    "n": 24,
+    "ini": 23.3,
+    "fin": 23.6,
+    "imagen": "plano-24.jpg"
+   },
+   {
+    "n": 25,
+    "ini": 23.6,
+    "fin": 23.9,
+    "imagen": "plano-25.jpg"
+   },
+   {
+    "n": 26,
+    "ini": 23.9,
+    "fin": 24.43,
+    "imagen": "plano-26.jpg"
+   },
+   {
+    "n": 27,
+    "ini": 24.43,
+    "fin": 33.7,
+    "imagen": "plano-27.jpg"
+   },
+   {
+    "n": 28,
+    "ini": 33.7,
+    "fin": 48.8,
+    "imagen": "plano-28.jpg"
+   },
+   {
+    "n": 29,
+    "ini": 48.8,
+    "fin": 53.9,
+    "imagen": "plano-29.jpg"
+   },
+   {
+    "n": 30,
+    "ini": 53.9,
+    "fin": 54.2,
+    "imagen": "plano-30.jpg"
+   },
+   {
+    "n": 31,
+    "ini": 54.2,
+    "fin": 54.47,
+    "imagen": "plano-31.jpg"
+   },
+   {
+    "n": 32,
+    "ini": 54.47,
+    "fin": 54.77,
+    "imagen": "plano-32.jpg"
+   },
+   {
+    "n": 33,
+    "ini": 54.77,
+    "fin": 55.03,
+    "imagen": "plano-33.jpg"
+   },
+   {
+    "n": 34,
+    "ini": 55.03,
+    "fin": 55.37,
+    "imagen": "plano-34.jpg"
+   },
+   {
+    "n": 35,
+    "ini": 55.37,
+    "fin": 55.63,
+    "imagen": "plano-35.jpg"
+   },
+   {
+    "n": 36,
+    "ini": 55.63,
+    "fin": 55.9,
+    "imagen": "plano-36.jpg"
+   },
+   {
+    "n": 37,
+    "ini": 55.9,
+    "fin": 57.8,
+    "imagen": "plano-37.jpg"
+   },
+   {
+    "n": 38,
+    "ini": 57.8,
+    "fin": 62.03,
+    "imagen": "plano-38.jpg"
+   },
+   {
+    "n": 39,
+    "ini": 62.03,
+    "fin": 71.43,
+    "imagen": "plano-39.jpg"
+   },
+   {
+    "n": 40,
+    "ini": 71.43,
+    "fin": 87.6,
+    "imagen": "plano-40.jpg"
+   }
+  ]
+ }
+}

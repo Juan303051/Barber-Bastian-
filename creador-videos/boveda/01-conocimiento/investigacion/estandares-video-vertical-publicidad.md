@@ -1,0 +1,40 @@
+---
+tipo: "investigacion"
+fecha: "2026-10-24"
+estado: "revisado"
+fuentes: ["https://www.facebook.com/business/ads-guide/update/image/instagram-reels", "https://www.facebook.com/business/ads/facebook-instagram-reels-ads", "https://developers.facebook.com/blog/post/2024/11/07/unlock-the-power-of-reel-ads/", "https://ads.tiktok.com/resources/help/article/creative-best-practices", "https://ads.tiktok.com/help/article/tiktok-reservation-topview", "https://ads.tiktok.com/business/en-US/blog/audio-library-royalty-free-music", "https://tech.ebu.ch/docs/r/r128.pdf", "https://tech.ebu.ch/docs/r/r128s2.pdf", "https://hajim.rochester.edu/ece/sites/zduan/teaching/ece472/reading/Ellis_2007.pdf"]
+---
+# Estándares de video vertical para publicidad (lo que se puede exigir a la app)
+
+Pregunta: qué números y reglas se pueden comprobar de forma automática para que un video de marca salga «publicable», y cuáles son solo costumbre. Aplicación: el control de calidad y la mezcla de `creador-videos/app/`.
+
+## Hallazgos
+| Tema | Lo que dice la fuente | Fuente (consultada 2026-10-24) | Confianza |
+|---|---|---|---|
+| Zona segura de Reels (Meta) | Dejar libre de texto y logos aprox. **14 % arriba, 35 % abajo y 6 % a cada lado**; relación 9:16 | [Meta, especificaciones de Reels](https://www.facebook.com/business/ads-guide/update/image/instagram-reels) (lo vi a través de un resumen de búsqueda; la página no se pudo abrir completa) | media-alta |
+| Zona segura de TikTok | El texto, logos y mensajes en las franjas rojas (arriba y abajo) de su herramienta de vista previa se **rechazan**; no dan un porcentaje fijo. Las guías de terceros usan ≈10 % arriba y abajo: **heurística, no regla oficial** | [TikTok Ads, TopView](https://ads.tiktok.com/help/article/tiktok-reservation-topview) | media (la regla existe; el número no) |
+| Gancho | Meta: mensaje clave o marca **en los primeros 3 s**. TikTok: la propuesta en los primeros 3 s y el gancho dentro de los primeros 6 s. Las cifras de Nielsen que cita Meta («hasta 47 % del valor en los 3 primeros segundos») vienen de investigación propia de Meta | [Meta, Reels Ads](https://www.facebook.com/business/ads/facebook-instagram-reels-ads), [TikTok, buenas prácticas](https://ads.tiktok.com/resources/help/article/creative-best-practices) | media (guías de las plataformas; varias páginas son antiguas) |
+| Sonido | TikTok: incluir siempre sonido, usar el audio «como un recurso creativo». Meta: más del 75 % de las vistas de Reels son con sonido y los conjuntos de anuncios con video vertical con sonido tuvieron menor costo por acción; **pero también** recomienda que el mensaje funcione sin sonido (subtítulos) | [Meta para desarrolladores](https://developers.facebook.com/blog/post/2024/11/07/unlock-the-power-of-reel-ads/), TikTok (misma página) | media (datos de la propia plataforma, sin estudio independiente) |
+| Formato técnico de TikTok | Vertical 9:16 de **540×960 o más**; duración **5–60 s** (9–15 s recomendado); hasta 500 MB; bitrate mínimo 2 500 kbps | [TikTok Ads, TopView](https://ads.tiktok.com/help/article/tiktok-reservation-topview) | alta para TopView; el resto de formatos puede variar |
+| Volumen | **EBU R 128 (v5, noviembre de 2023):** objetivo −23 LUFS, pico real máximo −1 dBTP. Es la norma de **televisión**; EBU R 128 s2 reconoce que las plataformas de streaming usan un nivel más alto y que normalizan por metadatos. Las plataformas sociales **no publican** su objetivo; el −14 LUFS que se cita para YouTube proviene de fuentes secundarias | [EBU R 128](https://tech.ebu.ch/docs/r/r128.pdf), [R 128 s2](https://tech.ebu.ch/docs/r/r128s2.pdf) | alta para EBU; **baja** para «−14 LUFS por plataforma» |
+| Volumen de las maquetas | Medido aquí en las 4 maquetas: **−13.5 a −14.5 LUFS**, con picos de entre −0.6 y +0.7 dBFS (al límite) | [[01-conocimiento/tecnicas/estilo-cinetico-sobre-escena]] | alta (medida propia) |
+| Música para marcas en TikTok | La Commercial Music Library tiene **más de 600 000 pistas** liberadas de derechos para contenido de marca y anuncios; es para **cuentas de empresa**. La biblioteca general **no** está liberada para contenido comercial: «riesgo de infracción de derechos de autor» | [TikTok Ads, biblioteca de audio](https://ads.tiktok.com/business/en-US/blog/audio-library-royalty-free-music) | alta (fuente oficial) |
+| Música para marcas en Instagram | Según resúmenes de la ayuda de Instagram, su biblioteca es de **uso personal y no comercial**; ciertas cuentas de empresa no tienen acceso y pueden usar la «Sound Collection» (más de 14 000 pistas libres para Reels e historias). **No encontré texto oficial sobre anuncios pagados.** Varios proveedores de música afirman que un Reel «impulsado» pierde la pista | [Ayuda de Instagram](https://help.instagram.com/ipad-app/402084904469945) (la página no cargó), resúmenes de terceros | **baja a media: confirmar en Ads Manager antes de pagar** |
+| Pulso musical | Método estándar: fuerza de ataques → tempo global → pulsos por programación dinámica. Es el que usa la app | [Ellis 2007, «Beat Tracking by Dynamic Programming», J. New Music Research 36(1)](https://hajim.rochester.edu/ece/sites/zduan/teaching/ece472/reading/Ellis_2007.pdf) | alta (artículo revisado) |
+
+## Lo que medí aquí con las maquetas (y lo que NO se puede afirmar)
+- La app analizó la música mezclada con la voz de las cuatro maquetas: tempos de 107 a 123 BPM con **confianza baja (43–52 %)**, porque la voz domina los ataques. (Una primera versión de esta medida usaba una rejilla perfecta que se desajustaba con el tiempo y daba una señal falsa a media escala; se corrigió usando los pulsos detectados.)
+- **Los cortes no siguen el pulso de forma clara.** Prueba de fase circular (Rayleigh) de cada corte contra los pulsos detectados, a cuatro escalas (corchea, pulso, 2 y 4 pulsos):
+  - @kevinvelasquez_ (39 cortes): **sin evidencia en ninguna escala** (`p` entre 0.44 y 0.81).
+  - @dreomar (17 cortes): señal **débil** a la escala de corchea (`r` = 0.53, `p` = 0.009; con cuatro escalas comparadas, ≈ 0.04) y nada a las otras. Con 17 cortes y un tempo de confianza del 52 %, **no es concluyente**.
+  - @jeann (2 cortes) y @sandeep (3 cortes): muy pocos cortes para medir.
+- Consecuencia: la nota [[01-conocimiento/tecnicas/estilo-cinetico-sobre-escena]] dice «montaje a ráfagas sobre la música» por **impresión visual**; **no está respaldada por medidas** (a lo sumo, una pista débil en una de cuatro maquetas). El montaje de las maquetas parece seguir el ritmo del habla y de las frases tanto o más que el pulso de la canción. La app **no promete** «cortar como las maquetas al ritmo de la música»: ofrece acercamientos sobre el pulso como opción propia y **mide** si quedaron sobre el pulso.
+- Los tempos de las maquetas son estimaciones con la voz encima; con una canción sola, la estimación es más fiable (en pruebas con audio sintético de tempo conocido acertó 14 de 22 casos exactos y 7 por octava —el doble o la mitad—, con error de fase de unos 7 ms).
+
+## Qué hacer con esto
+- Control de calidad automático con estos umbrales: volumen integrado a ±1 LU del objetivo (**−14 LUFS por defecto, configurable**) y pico real ≤ −1 dBTP; texto fuera de las franjas de 14 % arriba y 35 % abajo; texto o mensaje en los 3 primeros segundos; sin silencio al inicio; sin fotogramas negros ni imagen congelada.
+- Música: la app **no puede garantizar la licencia**. Cada pista lleva una licencia declarada por la persona (propia, licenciada, biblioteca de plataforma o sin confirmar) y el control de calidad avisa si es «sin confirmar».
+- Medir el pulso solo con la pista de la biblioteca (sin voz) y aceptar que el tempo puede salir al doble o a la mitad: los cortes se calculan sobre el intervalo, no sobre el número de BPM.
+
+## Qué falta por verificar
+Texto oficial de Meta sobre música en anuncios pagados; el objetivo de volumen real de Instagram y TikTok (hacer la prueba subiendo un video y leyendo la ayuda de cada plataforma); una prueba humana, con oído, de la mezcla.

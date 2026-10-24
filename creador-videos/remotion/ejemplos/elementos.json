@@ -1,0 +1,85 @@
+{
+  "formato": "elementos",
+  "escenas": [
+    {
+      "tipo": "contenido",
+      "duracion": 9
+    }
+  ],
+  "capas": [
+    {
+      "tipo": "mira",
+      "ini": 0.4,
+      "fin": 3.0,
+      "x": 50,
+      "y": 34,
+      "radio": 230,
+      "etiqueta": "Atención"
+    },
+    {
+      "tipo": "texto-curvo",
+      "ini": 3.2,
+      "fin": 5.4,
+      "x": 50,
+      "y": 26,
+      "texto": "Una sola idea por video",
+      "forma": "arco"
+    },
+    {
+      "tipo": "texto-curvo",
+      "ini": 3.2,
+      "fin": 5.4,
+      "x": 50,
+      "y": 46,
+      "texto": "y nada más",
+      "forma": "onda",
+      "tamano": 64
+    },
+    {
+      "tipo": "tarjeta",
+      "ini": 3.4,
+      "fin": 9,
+      "x": 24,
+      "y": 74,
+      "variante": "foto",
+      "texto": "Foto",
+      "rotacion": -8,
+      "ancho": 340
+    },
+    {
+      "tipo": "tarjeta",
+      "ini": 3.8,
+      "fin": 9,
+      "x": 76,
+      "y": 76,
+      "variante": "foto",
+      "texto": "Foto",
+      "rotacion": 7,
+      "ancho": 340
+    },
+    {
+      "tipo": "tarjeta",
+      "ini": 5.6,
+      "fin": 9,
+      "x": 50,
+      "y": 30,
+      "variante": "comentario",
+      "nombre": "Ana",
+      "etiqueta": "hace 2 h",
+      "meGusta": "4.7K",
+      "cifra": "353K",
+      "texto": "¿Cómo lo hiciste? (comentario de ejemplo)"
+    },
+    {
+      "tipo": "tarjeta",
+      "ini": 6.4,
+      "fin": 9,
+      "x": 50,
+      "y": 56,
+      "variante": "notificacion",
+      "nombre": "Luis",
+      "texto": "Tengo una novedad esta semana",
+      "etiqueta": "Entregado 15:30"
+    }
+  ]
+}
