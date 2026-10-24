@@ -642,3 +642,10 @@ body.con-aviso-cookies { padding-bottom: 10rem; }
 .consentimiento a { font-weight: 600; }
 .consentimiento.mal label { color: var(--peligro); }
 .costo-estimado { font-weight: 600; color: var(--etiqueta-2); }
+
+/* ───────────────────────── Modo iPhone por Wi-Fi ───────────────────────── */
+.entrada input.codigo { font: 700 1.75rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.22em; text-align: center; text-transform: uppercase; min-height: 3.6rem; }
+.ayuda-campo { font-size: 0.875rem; color: var(--etiqueta-2); line-height: 1.4; }
+.nota-red { margin-top: 1rem; font-size: 0.875rem; color: var(--etiqueta-2); text-align: center; line-height: 1.4; }
+.aviso-red { margin: 0.75rem auto 0; width: min(100% - 1.5rem, 72rem); padding: 0.55rem 1rem; border-radius: 14px; background: var(--superficie-2); color: var(--etiqueta-2); font-size: 0.875rem; line-height: 1.35; text-align: center; }
+.aviso-red strong { color: var(--etiqueta); }

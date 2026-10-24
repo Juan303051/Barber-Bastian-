@@ -52,7 +52,8 @@
     </section>
     <section><h2>Cómo se protegen tus datos</h2>
       <ul>
-        <li>Iris solo escucha en tu propio equipo (<code>127.0.0.1</code>): nadie más en tu red puede abrirla.</li>
+        <li>Por defecto, Iris solo escucha en tu propio equipo (<code>127.0.0.1</code>): nadie más en tu red puede abrirla.</li>
+        <li>Existe un modo <strong>opcional</strong> para abrirla desde tu iPhone por la Wi-Fi de tu casa. Solo se enciende si lo pides en la Terminal y lo confirmas; cada aparato debe escribir un código que solo se ve en la Terminal de tu Mac; y <strong>la conexión no va cifrada</strong>, así que solo es razonable en una red que controlas (nunca en un café, hotel o red pública). Al cerrar Iris se pierde el emparejamiento de todos los aparatos.</li>
         <li>La contraseña se guarda con scrypt, un cifrado diseñado para que no se pueda revertir; hay un límite de intentos de entrada.</li>
         <li>La cookie de sesión no puede leerla ninguna secuencia de comandos de la página (HttpOnly) ni viaja a otros sitios (SameSite=Strict).</li>
         <li>La clave de la IA se guarda con permisos de lectura solo para ti y nunca vuelve al navegador.</li>

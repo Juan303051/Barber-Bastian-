@@ -48,7 +48,7 @@ La primera vez, git te pedirá iniciar sesión en GitHub. Lo más fácil es inst
 6. **IA (opcional):** menú de tu avatar → «Director con IA…». Pega tu clave de Anthropic, **marca la casilla que confirma qué se envía** (sin ella la IA no recibe nada) y pulsa «Probar conexión». Con IA, un director propone el formato, el gancho, qué resaltar, la calculadora, las transiciones, los sonidos y el acabado; sin IA, Iris usa reglas y el resultado sigue saliendo. Ahí mismo ves cuánto cuesta cada video (unos 10 centavos de dólar con el modelo de máxima calidad) y lo gastado en el mes.
 7. **Logo de la marca (una vez por marca, opcional):** en la tarjeta de tu video, botón «Logo». Sube el archivo (PNG con fondo transparente es lo mejor) y confirma que tienes derecho a usarlo. Aparece animado en el cierre.
 8. **Tus videos:**
-   - **Sube las escenas** como las grabaste (varias a la vez, o de una en una). Se ordenan solas por el número del nombre; si no, usa «Subir» y «Bajar» y «Quitar» en cada una. Pueden ser videos o fotos.
+   - **Sube las escenas** como las grabaste (varias a la vez, o de una en una). Se ordenan solas por el número del nombre; si no, usa «Subir» y «Bajar» y «Quitar» en cada una. Las escenas son videos (las fotos aún no se aceptan como escena; sí como logo).
    - **Escribe qué quieres** con tus palabras (por ejemplo «contador de dinero: suma el precio y resta el descuento, transiciones, efectos de sonido, quita las pausas y cierra pidiendo que comenten EDITOR») o toca un atajo para insertar la frase completa.
    - **Formato:** déjalo en «Automático» o elige Subtítulos, Dinero, Antes y después o Pasos. Cambiarlo no borra tu texto.
    - **«Esto haré»:** muestra qué entendió y por qué. Cada extra (calculadora, transiciones, efectos de sonido, logo) tiene su interruptor; si no lo tocas, sigue lo que escribiste; si lo tocas, manda tu decisión.
@@ -67,7 +67,12 @@ Para cerrar la app: Control + C en la Terminal.
 2. En el celular: Ajustes → Acerca del teléfono → toca 7 veces «Número de compilación»; luego Opciones de desarrollador → activa «Depuración por USB».
 3. Conecta el cable, acepta el aviso del celular («Permitir depuración por USB») y ejecuta en el Mac: `./creador celular`.
 4. El celular abre Iris por el cable. En Chrome: menú ⋮ → «Añadir a la pantalla de inicio». Deja la Terminal abierta mientras lo uses.
-Con **iPhone** no hay una vía equivalente por cable que mantenga Iris solo en tu computador: dime si quieres una versión instalable y la preparamos.
+### Usar Iris en el iPhone (opcional, por tu Wi-Fi de casa)
+1. El Mac y el iPhone deben estar en **la misma Wi-Fi, y que sea la de tu casa**: la conexión no va cifrada, así que nunca la uses en un café, hotel o red pública.
+2. En el Mac, dentro de `creador-videos`: `./creador iphone`. Lee el aviso y escribe `SI`.
+3. La Terminal muestra una dirección (como `http://192.168.1.23:8765`) y un **código de 8 caracteres**. En el iPhone abre Safari, entra a esa dirección y escribe el código.
+4. Entra con tu cuenta (o créala). Para tenerla como app: botón Compartir → «Añadir a pantalla de inicio». Puede pedirte el código otra vez: pulsa Enter en la Terminal del Mac para ver uno nuevo.
+5. **Deja la Terminal abierta.** Control + C la cierra y deja a todos los aparatos sin emparejar.
 
 ## 8. Crear un video desde la Terminal (avanzado)
 1. Pon tu toma (la persona hablando a cámara) en `empresas/<empresa>/videos/propios/` y analízala: `./creador analizar --empresa <empresa>`.
@@ -94,6 +99,10 @@ Para ver qué piezas existen, prueba los ejemplos: `./creador render remotion/ej
 | El logo no aparece | Sube el logo de esa marca (botón «Logo» en la tarjeta del video) y confirma que tienes derecho a usarlo; si lo apagaste, enciende «Logo animado» |
 | No puedo arrastrar para ordenar las escenas | Aún no existe arrastrar: usa «Subir» y «Bajar» en cada escena |
 | Quiero un video horizontal o cuadrado | Hoy todo sale vertical 1080×1920; el cambio de tamaño aún no está hecho |
+| El iPhone no abre la dirección | Revisa que ambos estén en la misma Wi-Fi. Si macOS preguntó por «conexiones entrantes» a Python, elige Permitir (si ya dijiste que no: Ajustes del Sistema → Red → Cortafuegos). Algunas Wi-Fi de invitados, hoteles y oficinas aíslan los aparatos entre sí: ahí no funciona |
+| «Ese código ya no sirve» o «Demasiados intentos» | Pulsa Enter en la Terminal del Mac: da un código nuevo y quita el bloqueo |
+| El iPhone dejó de abrir la dirección al día siguiente | El router pudo darle otra dirección al Mac: repite `./creador iphone` y usa la nueva |
+| `./creador iphone` dice que Iris ya está abierta | Cierra la otra ventana de Iris (Control + C) y repite: ese modo necesita arrancarla él mismo |
 | `./creador celular` dice que no ve el celular | Revisa el cable, activa «Depuración por USB» y acepta el aviso en la pantalla del celular |
 | «Falta instalar» | `./instalar.sh` |
 | «Sign in to confirm you're not a bot» (YouTube) o «login required» (Instagram) | Repite con `--cookies-navegador safari` (o `chrome`) con la sesión abierta en ese navegador |

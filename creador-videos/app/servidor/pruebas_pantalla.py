@@ -108,8 +108,12 @@ def correr() -> list[str] | None:
         pg.keyboard.press("Space")
         pg.click("button[type=submit]")
         pg.wait_for_selector(".barra", timeout=10000)
-        pg.wait_for_timeout(1000)
-        ok(pg.locator(".emergente", has_text="confirma qué datos se envían").count() == 1, "con la IA sin confirmar, el panel avisa en vez de enviar datos")
+        aviso_ia = pg.locator(".emergente", has_text="confirma qué datos se envían")
+        try:
+            aviso_ia.wait_for(timeout=8000)  # el aviso llega tras una consulta al servidor: esperar a que aparezca, no un tiempo fijo
+        except Exception:  # noqa: BLE001
+            pass
+        ok(aviso_ia.count() == 1, "con la IA sin confirmar, el panel avisa en vez de enviar datos")
 
         print("Escenas")
         t = pg.locator(".trabajo").first
@@ -244,6 +248,52 @@ def correr() -> list[str] | None:
             revisar_axe(f"panel ({nombre})", q)
             c2.close()
         ok(not errores, f"sin errores en la consola del navegador ({errores[:2]})")
+
+        print("iPhone por Wi-Fi (aparato sin emparejar, pantalla de iPhone)")
+        from . import arranque, red
+        ip = red.ip_de_esta_red()
+        if ip is None:
+            print("  · (este equipo no tiene una dirección de red local: se omite)")
+        else:
+            puerto_red = PUERTO + 2
+            conexion = red.Red(ip, puerto_red, None)
+            servidor_red, conectores = arranque.servidor_en_red(crear_app(puerto_red, conexion), puerto_red, ip)
+            hilo_red = threading.Thread(target=lambda: servidor_red.run(sockets=conectores), daemon=True)
+            hilo_red.start()
+            for _ in range(100):
+                if getattr(servidor_red, "started", False):
+                    break
+                time.sleep(0.1)
+            movil = navegador.new_context(viewport={"width": 390, "height": 844}, color_scheme="light", bypass_csp=axe is not None, is_mobile=True, has_touch=True)
+            q = movil.new_page()
+            errores_red: list[str] = []
+            q.on("pageerror", lambda e: errores_red.append(str(e)))
+            q.goto(f"http://{ip}:{puerto_red}/")
+            q.wait_for_selector("#codigo")
+            ok(q.url.endswith("/emparejar.html"), "sin emparejar, abrir Iris por la red lleva a la página del código")
+            ok(q.locator("h1").inner_text() == "Empareja este aparato" and q.locator("label[for=codigo]").count() == 1 and q.evaluate("document.activeElement.id") == "codigo",
+               "la página tiene título, campo con etiqueta y el foco ya está en el código")
+            ok(q.get_attribute("#codigo", "autocapitalize") == "characters" and q.get_attribute("#codigo", "autocomplete") == "off", "el teclado del iPhone sale en mayúsculas y sin autocompletar")
+            ok(not q.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth + 1"), "sin desplazamiento horizontal a 390 px")
+            revisar_axe("página de emparejamiento", q)
+            q.fill("#codigo", "abc")
+            q.keyboard.press("Enter")
+            ok("8 letras y números" in q.locator("#codigo-msg").inner_text(), "un código incompleto se explica sin enviarse")
+            q.fill("#codigo", "ZZZZ-ZZZZ")
+            q.keyboard.press("Enter")
+            q.locator("#codigo-msg", has_text="no coincide").wait_for(timeout=8000)
+            ok("no coincide" in q.locator("#codigo-msg").inner_text() and q.get_attribute("#codigo", "aria-invalid") == "true", "un código equivocado se dice con claridad")
+            q.fill("#codigo", conexion.codigo_para_mostrar().lower())
+            q.keyboard.press("Enter")
+            q.wait_for_selector(".acceso-tarjeta #nombre, .acceso-tarjeta #correo", timeout=10000)
+            ok(q.locator(".aviso-red").count() == 1 and "por Wi-Fi" in q.locator(".aviso-red").inner_text(), "emparejado, ve la pantalla de entrada con el aviso de que la conexión no va cifrada")
+            revisar_axe("entrada por Wi-Fi con aviso", q)
+            ok(not errores_red, f"sin errores de JavaScript en el aparato ({errores_red[:2]})")
+            movil.close()
+            servidor_red.should_exit = True
+            hilo_red.join(timeout=10)
+            for conector in conectores:
+                conector.close()
         navegador.close()
     servidor.should_exit = True
     return fallos

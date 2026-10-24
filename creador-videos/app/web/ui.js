@@ -69,7 +69,7 @@ export function mostrarAvisoCookies() {
   const entendido = el("button", { type: "button", clase: "boton", texto: "Entendido" });
   const ver = el("a", { clase: "boton", href: "/legal/cookies.html", target: "_blank", rel: "noopener", texto: "Ver la política" });
   const nodo = el("div", { id: "aviso-cookies", clase: "aviso-cookies vidrio", role: "region", "aria-label": "Aviso de cookies" },
-    el("p", {}, el("strong", { texto: "Solo una cookie imprescindible " }), "para mantener tu sesión. Sin publicidad ni terceros: no hace falta tu permiso."),
+    el("p", {}, el("strong", { texto: "Solo cookies imprescindibles " }), "para mantener tu sesión. Sin publicidad ni terceros: no hace falta tu permiso."),
     el("div", { clase: "acciones" }, entendido, ver));
   entendido.addEventListener("click", cerrar);
   ver.addEventListener("click", cerrar);

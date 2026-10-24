@@ -1,4 +1,4 @@
-"""Punto de entrada: ./creador app | celular | director | cuenta | musica | preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
+"""Punto de entrada: ./creador app | celular | iphone | director | cuenta | musica | preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ from comun import RAIZ, asegurar_carpetas, empresas, nombre
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["app", "celular", "director", "cuenta", "musica", "preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
+    ap.add_argument("accion", choices=["app", "celular", "iphone", "director", "cuenta", "musica", "preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
     ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json; guion: nombre del archivo de video")
     ap.add_argument("segundo", nargs="?", help="cuenta: el correo (./creador cuenta restablecer tu@correo.com); musica: dónde guardar el análisis completo (.json); celular: no se usa")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
@@ -22,13 +22,14 @@ def main() -> int:
     ap.add_argument("--modelo-voz", default="base", help="analizar: tiny, base, small, medium")
     ap.add_argument("--diseno", choices=["pleno", "antes-despues"], default="antes-despues", help="guion: diseño del borrador")
     ap.add_argument("--nombre", help="guion: nombre del guion (por defecto, el del video)")
+    ap.add_argument("--ip", help="iphone: la dirección de tu Mac en la Wi-Fi de casa, si no se detecta sola (p. ej. 192.168.1.23)")
     ap.add_argument("--sin-navegador", action="store_true", help="app: no abrir el navegador al iniciar")
     ap.add_argument("--rapido", action="store_true", help="probar: omite la prueba de Remotion (la más lenta)")
     ap.add_argument("--forzar", action="store_true", help="analizar: rehacer lo ya analizado; guion: reemplazar un guion que ya existe")
     a = ap.parse_args()
     asegurar_carpetas()
 
-    if a.accion in ("app", "cuenta", "celular", "director"):
+    if a.accion in ("app", "cuenta", "celular", "iphone", "director"):
         sys.path.insert(0, str(RAIZ / "app"))
         if a.accion == "director":
             from servidor import autoevaluacion
@@ -36,6 +37,8 @@ def main() -> int:
         from servidor import arranque
         if a.accion == "celular":
             return arranque.celular(a.guion)
+        if a.accion == "iphone":
+            return arranque.iphone(a.ip)
         return arranque.iniciar(not a.sin_navegador) if a.accion == "app" else arranque.cuentas(a.guion, a.segundo)
 
     if a.accion == "musica":

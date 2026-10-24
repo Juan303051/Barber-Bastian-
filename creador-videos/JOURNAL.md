@@ -2,6 +2,13 @@
 
 Qué se hizo y qué se encontró, por sesión. Lo más nuevo, arriba. Solo hechos comprobados; lo no probado se dice.
 
+## 2026-10-24 · iPhone por Wi-Fi (modo opcional)
+**Pedido:** «descarga el repositorio en este celular y ponlo a correr». Desde la nube no hay acceso al celular, y un celular no puede correr Iris (Python, ffmpeg, Whisper, Remotion); se explicó y la persona eligió el modo opcional por Wi-Fi de casa.
+**Hecho:** `./creador iphone` y `app/servidor/red.py` (decisión y límites: `DECISIONS.md` D12); página de emparejamiento (`app/web/emparejar.*`); aviso en pantalla cuando se usa por Wi-Fi; textos de privacidad y cookies actualizados (nueva cookie `iris_dispositivo`); `GUIA.md` y `README.md`.
+**Comprobado en Linux:** `pruebas_red.py` (48): código, vencimiento, usos, bloqueo, 12 h, host y origen ajenos, dirección de Internet rechazada, nada accesible sin emparejar, emparejado ≠ sesión iniciada, y un servidor real escuchando en `127.0.0.1` y en la dirección de la red; la página del código en un navegador con pantalla de iPhone simulada (teclado en mayúsculas, sin desplazamiento horizontal, axe sin violaciones, flujo completo hasta la pantalla de entrada).
+**Corregido de paso:** (1) `README.md` y `GUIA.md` decían que una escena podía ser una foto; el servidor solo acepta videos como escena (las imágenes solo valen para el logo). (2) Una comprobación de la pantalla esperaba un tiempo fijo en vez de esperar el aviso: fallaba de vez en cuando.
+**Sin verificar:** un iPhone real y Safari, el cortafuegos de macOS, redes Wi-Fi que aíslan aparatos, y que «Añadir a pantalla de inicio» conserve o pida de nuevo el código (depende de iOS).
+
 ## 2026-10-24 · Segunda ronda tras probarla en el Mac
 **Lo que dijo la persona:** con la clave de IA conectada la app «no tiene en cuenta casi nada del texto»; transiciones, efectos de sonido y logo animado salían como «todavía no»; algunos botones no respondían; se graba por escenas; el formato solo tenía dos opciones; faltan páginas de privacidad y cumplimiento.
 

@@ -17,7 +17,7 @@ Una app local de una sola pantalla para una persona que crea videos de marketing
 | Cuentas locales, exportar y borrar los propios datos | Cuentas en la nube, cobros, anuncios |
 
 ## Reglas que no se negocian
-1. Solo escucha en `127.0.0.1`; los datos viven en `app/datos/` y no se suben.
+1. Solo escucha en `127.0.0.1`, salvo el modo opcional del iPhone por Wi-Fi (`DECISIONS.md` D12): se enciende a mano, avisa de que no va cifrado y exige un código que solo se ve en la Terminal. Los datos viven en `app/datos/` y no se suben.
 2. La IA propone y el código decide: ninguna cifra, dato o promesa que no salga del video, el brief o la ficha.
 3. Si la IA falla, el video sale con reglas y se dice por qué.
 4. Todo lo que se pidió en el texto aparece al final como «hecho», «parcial» o «no se pudo», con el motivo.
@@ -31,6 +31,7 @@ Una app local de una sola pantalla para una persona que crea videos de marketing
 - [x] Cada cosa pedida en el texto se verifica contra el video y se informa («Lo que pediste»).
 - [x] Páginas de privacidad, términos, reembolsos y cookies; consentimiento al crear la cuenta; exportar y borrar datos. *(falta la revisión legal por país)*
 - [x] `./creador probar` en verde y la pantalla probada en un navegador real (axe sin violaciones, teclado, móvil). *(Chromium en Linux; Safari sin probar)*
+- [x] El iPhone puede usar Iris por la Wi-Fi de casa en un modo opcional con emparejamiento. *(servidor real y navegador móvil simulado en Linux; falta un iPhone real)*
 
 ## Sin verificar desde la nube
-IA real (incluido el esquema nuevo de la petición), oído humano sobre las mezclas y los efectos, Mac y Safari del usuario, celular real, una toma de iPhone girada real, la licencia de Remotion para el negocio y la revisión legal de los textos. Se marcan `[x]` los criterios cumplidos *en Linux*; ninguno se da por verificado en el Mac hasta que la persona lo pruebe.
+IA real (incluido el esquema nuevo de la petición), oído humano sobre las mezclas y los efectos, Mac y Safari del usuario, un iPhone y un celular reales, una toma de iPhone girada real, la licencia de Remotion para el negocio y la revisión legal de los textos. Se marcan `[x]` los criterios cumplidos *en Linux*; ninguno se da por verificado en el Mac hasta que la persona lo pruebe.

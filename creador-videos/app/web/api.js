@@ -22,6 +22,7 @@ async function pedir(metodo, ruta, cuerpo) {
   }
   const datos = await respuesta.json().catch(() => ({}));
   if (!respuesta.ok) {
+    if (datos.emparejar) { location.assign("/emparejar.html"); throw new ErrorApi(401, datos); }
     if (respuesta.status === 401 && ruta !== "/api/entrar") document.dispatchEvent(new CustomEvent("sesion-caducada"));
     throw new ErrorApi(respuesta.status, datos);
   }

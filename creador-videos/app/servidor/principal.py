@@ -1,4 +1,5 @@
-"""Servidor local de Iris: cuentas, referencias, trabajos y archivos. Solo escucha en este equipo."""
+"""Servidor local de Iris: cuentas, referencias, trabajos y archivos. Por defecto solo escucha en este equipo (127.0.0.1);
+el modo opcional del iPhone por Wi-Fi está en red.py."""
 from __future__ import annotations
 
 import json
@@ -17,7 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 import comun
 
-from . import calidad, datos, escenas as unidor, formatos, interprete, produccion, seguridad
+from . import calidad, datos, escenas as unidor, formatos, interprete, produccion, red as modulo_red, seguridad
 from .direccion import ia, perfil as perfiles
 
 WEB = datos.RAIZ_APP / "web"
@@ -47,18 +48,30 @@ def error(estado: int, mensaje: str, **extra) -> HTTPException:
 
 
 class Defensas(BaseHTTPMiddleware):
-    """Rechaza peticiones que no vienen de esta misma página y pone las cabeceras de seguridad."""
+    """Rechaza peticiones que no vienen de esta misma página y pone las cabeceras de seguridad.
+    En el modo Wi-Fi (`red`) además deja pasar solo a aparatos de la red local que ya escribieron el código de emparejamiento."""
 
-    def __init__(self, app, puerto: int) -> None:
+    def __init__(self, app, puerto: int, red: modulo_red.Red | None = None) -> None:
         super().__init__(app)
         self.puerto = puerto
+        self.red = red
 
     async def dispatch(self, request: Request, siguiente):
-        if not seguridad.host_permitido(request.headers.get("host"), self.puerto):
+        extra = self.red.hosts if self.red else frozenset()
+        if not seguridad.host_permitido(request.headers.get("host"), self.puerto, extra):
             return JSONResponse({"mensaje": "Esta app solo se abre desde este equipo."}, status_code=421)
+        cliente = request.client.host if request.client else None
+        remoto = self.red is not None and self.red.es_remoto(cliente)
+        if remoto and not modulo_red.ip_privada(cliente):
+            return JSONResponse({"mensaje": "Esta app solo atiende a aparatos de tu red local."}, status_code=403)
         if request.method not in {"GET", "HEAD", "OPTIONS"} and not seguridad.origen_permitido(
-                request.headers.get("origin"), request.headers.get("sec-fetch-site"), self.puerto):
+                request.headers.get("origin"), request.headers.get("sec-fetch-site"), self.puerto, extra):
             return JSONResponse({"mensaje": "Petición rechazada por seguridad."}, status_code=403)
+        if remoto and request.url.path not in modulo_red.RUTAS_ABIERTAS and not self.red.dispositivo_valido(request.cookies.get(modulo_red.COOKIE)):
+            if request.url.path.startswith("/api/"):
+                return JSONResponse({"mensaje": "Empareja este aparato con el código de la Terminal del Mac.", "emparejar": True}, status_code=401,
+                                    headers={"Cache-Control": "no-store"})
+            return Response(status_code=302, headers={"Location": "/emparejar.html", "Cache-Control": "no-store"})
         respuesta = await siguiente(request)
         respuesta.headers["Content-Security-Policy"] = CSP
         respuesta.headers["X-Content-Type-Options"] = "nosniff"
@@ -66,12 +79,14 @@ class Defensas(BaseHTTPMiddleware):
         respuesta.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         if request.url.path.startswith("/api/") and "cache-control" not in respuesta.headers:
             respuesta.headers["Cache-Control"] = "no-store"
+        if remoto:
+            respuesta.headers["Cache-Control"] = "no-store"
         return respuesta
 
 
-def crear_app(puerto: int = 8765) -> FastAPI:
+def crear_app(puerto: int = 8765, red: modulo_red.Red | None = None) -> FastAPI:
     app = FastAPI(title="Iris", docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(Defensas, puerto=puerto)
+    app.add_middleware(Defensas, puerto=puerto, red=red)
     datos.abrir()
     produccion.iniciar()
 
@@ -95,7 +110,20 @@ def crear_app(puerto: int = 8765) -> FastAPI:
     def sesion(request: Request):
         encontrado = seguridad.usuario_de_token(request.cookies.get(COOKIE))
         cuantos = datos.uno("SELECT COUNT(*) AS n FROM usuarios")["n"]
-        return {"autenticado": encontrado is not None, "usuario": usuario_publico(encontrado), "primera_vez": cuantos == 0}
+        por_red = red is not None and red.es_remoto(request.client.host if request.client else None)
+        return {"autenticado": encontrado is not None, "usuario": usuario_publico(encontrado), "primera_vez": cuantos == 0, "por_red": por_red}
+
+    @app.post("/api/emparejar")
+    async def emparejar(request: Request, respuesta: Response):
+        """Modo Wi-Fi: un aparato nuevo escribe el código que muestra la Terminal del Mac y recibe su cookie de aparato."""
+        if red is None:
+            raise error(404, "El modo iPhone por Wi-Fi no está activo. En el Mac: ./creador iphone")
+        cuerpo = await _json(request)
+        token, mensaje, espera = red.probar(str(cuerpo.get("codigo", "")), request.client.host if request.client else "?")
+        if token is None:
+            raise HTTPException(429 if espera else 401, {"mensaje": mensaje, "espera": espera}, headers={"Retry-After": str(espera)} if espera else None)
+        respuesta.set_cookie(modulo_red.COOKIE, token, max_age=modulo_red.VIDA_DISPOSITIVO, httponly=True, samesite="strict", path="/")
+        return {"ok": True}
 
     @app.post("/api/registro")
     async def registro(request: Request, respuesta: Response):

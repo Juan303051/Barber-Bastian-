@@ -192,11 +192,12 @@ def _app(r: Resultado, completo: bool) -> None:
                ("cifras habladas: números partidos por Whisper, en letras y operaciones de calculadora", ["-m", "servidor.pruebas_numeros"]),
                ("escenas y logo: unir tomas de distinto tamaño, con y sin audio", ["-m", "servidor.pruebas_escenas"]),
                ("privacidad: textos legales, consentimientos, exportar y borrar datos, nada de terceros", ["-m", "servidor.pruebas_privacidad"]),
+               ("modo iPhone por Wi-Fi: código de emparejamiento, defensas y un servidor real en dos direcciones", ["-m", "servidor.pruebas_red"]),
                ("música, mezcla y volumen con audio de resultado conocido", ["-m", "servidor.pruebas_audio"]),
                ("el director: perfil, límites contra invenciones, rúbrica, IA simulada y control de calidad", ["-m", "servidor.pruebas_direccion"]),
                ("la app de punta a punta", ["-m", "servidor.pruebas_api", *(["--completo"] if completo else [])]))
     if importlib.util.find_spec("playwright"):
-        pruebas += (("la pantalla en un navegador: escenas, formato, extras, logo, privacidad, teclado y celular", ["-m", "servidor.pruebas_pantalla"]),)
+        pruebas += (("la pantalla en un navegador: escenas, formato, extras, logo, privacidad, teclado, celular y emparejar un iPhone", ["-m", "servidor.pruebas_pantalla"]),)
     else:
         print("  · se omite la prueba de la pantalla en un navegador: instala Playwright para activarla (pip install playwright && playwright install chromium)")
     for titulo, argumentos in pruebas:

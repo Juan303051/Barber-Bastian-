@@ -25,6 +25,9 @@ async function arrancar() {
   poner(raiz, el("div", { clase: "cargando-pagina", role: "status" }, logo(), el("span", { clase: "solo-lector", texto: "Cargando Iris…" })));
   try {
     const sesion = await api.sesion();
+    if (sesion.por_red && !document.querySelector(".aviso-red")) {
+      raiz.before(el("aside", { clase: "aviso-red", "aria-label": "Aviso sobre la conexión" }, el("strong", { texto: "Estás en Iris por Wi-Fi." }), " La conexión no va cifrada: úsala solo en tu red de casa."));
+    }
     if (sesion.usuario) mostrarPanel(sesion.usuario);
     else mostrarAcceso(sesion.primera_vez);
   } catch (error) {

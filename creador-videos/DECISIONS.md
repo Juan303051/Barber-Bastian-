@@ -1,6 +1,12 @@
 # DECISIONS — Iris
 
-Cada decisión: qué, por qué y qué se descartó. Las más nuevas, arriba. D1–D7 describen cosas hechas; D8–D11, la política de textos, de opciones y de datos.
+Cada decisión: qué, por qué y qué se descartó. Las más nuevas, arriba. D1–D7 describen cosas hechas; D8–D12, la política de textos, de opciones, de datos y de red.
+
+## D12 · iPhone por Wi-Fi: modo opcional con emparejamiento (2026-10-24)
+La persona eligió «iPhone por Wi-Fi, modo opcional». Es el único desvío de D1 y queda acotado: `./creador iphone` se confirma escribiendo SI y avisa de que **no va cifrado**; escucha en `127.0.0.1` y en **una** dirección de la red local; solo atiende a aparatos con dirección privada y al nombre exacto del Mac (frena el «DNS rebinding»); un aparato nuevo no ve nada hasta escribir un código de 8 caracteres (alfabeto sin I, O, 0, 1) que solo aparece en la Terminal; el código vence a los 10 min, sirve para 3 aparatos y se bloquea tras 5 fallos; Enter en la Terminal da otro. Los aparatos emparejados viven en memoria 12 h: al cerrar Iris se pierden. Todo está en `app/servidor/red.py`, con 48 pruebas.
+Por qué el código y no solo la cuenta: sin él, cualquiera en la red vería la pantalla de acceso, podría crear la primera cuenta si aún no existe y probar contraseñas.
+Descartado: escuchar en todas las interfaces siempre (expone el Mac donde no se pidió); HTTPS con certificado propio (Safari lo marca como no seguro y arreglarlo exige instalar un perfil de confianza en el iPhone); un túnel a Internet (expone a Internet y pasa el tráfico por un tercero); Compartir Internet por USB (más pasos y no está probado).
+Costo asumido: en una Wi-Fi hostil, quien capture el tráfico vería contraseñas y videos. Por eso el aviso en la Terminal, el aviso en pantalla y la política de privacidad lo dicen, y la guía pide usarlo solo en la red de casa.
 
 ## D11 · Las pruebas de pantalla son opcionales (2026-10-24)
 `pruebas_pantalla.py` usa un navegador real (Playwright) y, si se quiere, axe-core (`CREADOR_AXE`). Quien no los tiene no debe ver fallar `./creador probar`: se omiten con un aviso. Se ejecutan a mano o en una máquina que los tenga, y son la única prueba de teclado y contraste.
@@ -44,4 +50,4 @@ Descartado: transcribir y renderizar escena por escena (duplica el costo y compl
 Ver `README.md`. Es la regla que impide cifras o promesas inventadas.
 
 ## D1 · Solo `127.0.0.1` (2026-10-22)
-Android entra por `adb reverse`. Para iPhone no existe una vía por cable que mantenga esa regla: queda pendiente de decisión de la persona (modo opcional por Compartir Internet por USB).
+Android entra por `adb reverse`. Para iPhone no existe una vía por cable que mantenga esa regla: ver D12 (modo opcional por Wi-Fi de casa, decidido por la persona).

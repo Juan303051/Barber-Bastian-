@@ -97,16 +97,21 @@ def borrar_fallos(clave: str) -> None:
     datos.ejecutar("DELETE FROM intentos WHERE clave = ?", (clave,))
 
 
-def host_permitido(host: str | None, puerto: int) -> bool:
-    """Solo se atiende a quien llega por localhost: frena el «DNS rebinding»."""
-    return host in {f"127.0.0.1:{puerto}", f"localhost:{puerto}", "127.0.0.1", "localhost"}
+def host_permitido(host: str | None, puerto: int, extra: frozenset | set = frozenset()) -> bool:
+    """Solo se atiende a quien llega por localhost (o por el nombre exacto que Iris dio en el modo Wi-Fi): frena el «DNS rebinding»."""
+    if not host:
+        return False
+    nombre, dos_puntos, resto = host.lower().partition(":")
+    if dos_puntos and resto != str(puerto):
+        return False
+    return nombre in {"127.0.0.1", "localhost"} | set(extra)
 
 
-def origen_permitido(origen: str | None, sitio: str | None, puerto: int) -> bool:
+def origen_permitido(origen: str | None, sitio: str | None, puerto: int, extra: frozenset | set = frozenset()) -> bool:
     """Peticiones que modifican datos: si vienen de un navegador, tienen que venir de esta misma página."""
     if sitio is not None and sitio not in {"same-origin", "none"}:
         return False
     if origen is None:
         return True
     partes = urlsplit(origen)
-    return partes.scheme == "http" and partes.hostname in {"127.0.0.1", "localhost"} and partes.port == puerto
+    return partes.scheme == "http" and (partes.hostname or "").lower() in {"127.0.0.1", "localhost"} | set(extra) and partes.port == puerto
