@@ -42,14 +42,25 @@ La primera vez, git te pedirá iniciar sesión en GitHub. Lo más fácil es inst
 ## 7. Crear videos con la app (lo más fácil)
 1. En la Terminal, dentro de `creador-videos`: `./creador app`. Se abre el navegador. **Deja esa ventana de la Terminal abierta** mientras trabajas.
 2. La primera vez, crea tu cuenta (nombre, correo y contraseña). Las siguientes, entra con ellas. Si olvidas la contraseña: `./creador cuenta restablecer tu@correo.com`.
-3. **Referencias:** suelta uno o varios videos que te gusten (o pega un enlace; si la red no deja descargarlo, sube el archivo). Iris aprende su ritmo.
+3. **Referencias:** suelta uno o varios videos que te gusten (o pega un enlace; si la red no deja descargarlo, sube el archivo). Iris aprende su ritmo. Son solo para estudiar cómo están hechos: no se republican.
 4. **Música (opcional):** suelta tus canciones. Iris mide su pulso y energía solo. **Declara la licencia de cada una** (propia, comprada o de la biblioteca de música comercial de tu plataforma); con «sin confirmar», el video sale como borrador y no debes publicarlo.
 5. **Test del director (2 minutos, una vez por marca):** en el aviso de arriba o en el menú de tu avatar. Son diez preguntas: tono, ritmo, música, acabado, qué nunca debe aparecer… Iris las usa en cada video.
-6. **IA (opcional):** menú de tu avatar → «Director con IA…». Pega tu clave de Anthropic y pulsa «Probar conexión». Con IA, un director propone el gancho, qué resaltar y el acabado; sin IA, Iris usa reglas y el resultado sigue saliendo. Lee ahí mismo qué se envía y cuánto cuesta.
-7. **Tus videos:** suelta la toma, escribe qué quieres con tus palabras (por ejemplo «subtítulos dinámicos, resalta dinero y gratis, quita las pausas y cierra pidiendo que comenten EDITOR») y mira «Esto entendí»: ahí ves qué hará y qué no puede hacer todavía. Los botones de abajo escriben frases por ti.
-8. Pulsa **Crear video** (o «Crear N videos» arriba para todos a la vez). Verás el video construyéndose. Cuando termine, lee el **informe de calidad** (qué está en orden y qué revisar) y **cómo lo dirigió Iris**; mira el resultado y descárgalo. Si algo no te gusta, «Cambiar y volver a crear».
-9. Para probar rápido, activa «Borrador rápido» en Opciones avanzadas: sale a mitad de tamaño. El resultado siempre es un borrador que tú revisas antes de publicar.
+6. **IA (opcional):** menú de tu avatar → «Director con IA…». Pega tu clave de Anthropic, **marca la casilla que confirma qué se envía** (sin ella la IA no recibe nada) y pulsa «Probar conexión». Con IA, un director propone el formato, el gancho, qué resaltar, la calculadora, las transiciones, los sonidos y el acabado; sin IA, Iris usa reglas y el resultado sigue saliendo. Ahí mismo ves cuánto cuesta cada video (unos 10 centavos de dólar con el modelo de máxima calidad) y lo gastado en el mes.
+7. **Logo de la marca (una vez por marca, opcional):** en la tarjeta de tu video, botón «Logo». Sube el archivo (PNG con fondo transparente es lo mejor) y confirma que tienes derecho a usarlo. Aparece animado en el cierre.
+8. **Tus videos:**
+   - **Sube las escenas** como las grabaste (varias a la vez, o de una en una). Se ordenan solas por el número del nombre; si no, usa «Subir» y «Bajar» y «Quitar» en cada una. Pueden ser videos o fotos.
+   - **Escribe qué quieres** con tus palabras (por ejemplo «contador de dinero: suma el precio y resta el descuento, transiciones, efectos de sonido, quita las pausas y cierra pidiendo que comenten EDITOR») o toca un atajo para insertar la frase completa.
+   - **Formato:** déjalo en «Automático» o elige Subtítulos, Dinero, Antes y después o Pasos. Cambiarlo no borra tu texto.
+   - **«Esto haré»:** muestra qué entendió y por qué. Cada extra (calculadora, transiciones, efectos de sonido, logo) tiene su interruptor; si no lo tocas, sigue lo que escribiste; si lo tocas, manda tu decisión.
+   - Si aparecen niños en el video, marca que tienes la autorización de sus padres o tutores (si no, el informe no lo da por listo).
+9. Pulsa **Crear video** (o «Crear N videos» arriba para todos a la vez). Verás el video construyéndose. Cuando termine, lee **«Lo que pediste»** (qué se hizo, qué se hizo a medias y qué no, con el motivo), el **informe de calidad** y **cómo lo dirigió Iris**; mira el resultado y descárgalo. Si algo no te gusta, «Cambiar y volver a crear».
+10. Para probar rápido, activa «Borrador rápido» en Más opciones: sale a mitad de tamaño. El resultado siempre es un borrador que tú revisas antes de publicar.
 Para cerrar la app: Control + C en la Terminal.
+
+### Tus datos y los textos legales
+- Al crear la cuenta lees y **marcas tú** la casilla de privacidad y términos (nunca viene marcada). Los cuatro textos (privacidad, términos, reembolsos, cookies) están abajo de cada pantalla y en el menú de tu avatar. **Son un borrador: que los revise una persona de derecho de tu país antes de usarlos con clientes.**
+- Menú de tu avatar → **Exportar mis datos** (descarga un archivo con tus cuentas, videos y ajustes; nunca contraseñas ni claves) y **Eliminar mi cuenta** (pide tu contraseña y te deja borrar también tus videos, referencias y música).
+- Iris no cobra nada. Lo único que puede costar dinero es la IA de Anthropic (se muestra antes de crear cada video). Lista completa de lo que hace Iris con cada punto de privacidad y accesibilidad: [CUMPLIMIENTO.md](CUMPLIMIENTO.md).
 
 ### Pasar Iris al celular (Android, por cable)
 1. En el Mac, una vez: `brew install --cask android-platform-tools`.
@@ -77,6 +88,12 @@ Para ver qué piezas existen, prueba los ejemplos: `./creador render remotion/ej
 | Un video de la app queda en «interrumpido» | Se cerró la app mientras trabajaba (o el archivo del video se borró): pulsa «Intentar de nuevo» |
 | «Sin IA: …» en las notas de un video | La IA falló por la razón que dice (clave, saldo, internet): el video salió igual con reglas. Revisa «Director con IA…» en el menú de tu avatar |
 | El informe de calidad dice «licencia sin confirmar» | Declara la licencia de esa canción en la sección Música; si no la tienes, no publiques ese video |
+| El informe de calidad pide la autorización de los padres | Hay niños en la marca o en el video: pulsa «Confirmo que tengo la autorización de los padres» en la tarjeta del video (no hace falta volver a crearlo) |
+| «Falta confirmar qué datos se envían…» | Menú de tu avatar → «Director con IA…» y marca la casilla de confirmación; mientras tanto el video sale con reglas |
+| «Lo que pediste» dice «no» en la calculadora | No se oyeron cifras claras (o no se dijeron en voz alta): di los montos con el número completo, por ejemplo «ocho millones quinientos mil» |
+| El logo no aparece | Sube el logo de esa marca (botón «Logo» en la tarjeta del video) y confirma que tienes derecho a usarlo; si lo apagaste, enciende «Logo animado» |
+| No puedo arrastrar para ordenar las escenas | Aún no existe arrastrar: usa «Subir» y «Bajar» en cada escena |
+| Quiero un video horizontal o cuadrado | Hoy todo sale vertical 1080×1920; el cambio de tamaño aún no está hecho |
 | `./creador celular` dice que no ve el celular | Revisa el cable, activa «Depuración por USB» y acepta el aviso en la pantalla del celular |
 | «Falta instalar» | `./instalar.sh` |
 | «Sign in to confirm you're not a bot» (YouTube) o «login required» (Instagram) | Repite con `--cookies-navegador safari` (o `chrome`) con la sesión abierta en ese navegador |

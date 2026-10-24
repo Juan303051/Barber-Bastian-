@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import unicodedata
 from pathlib import Path
 
 import audio
@@ -19,6 +20,45 @@ LICENCIAS = {
     "plataforma": "De la biblioteca de la plataforma",
     "sin-confirmar": "Licencia sin confirmar",
 }
+
+
+def confirmar_menores(informe: dict | None) -> dict | None:
+    """La persona confirmó que tiene la autorización de los padres: el aviso pasa a «en orden» y el veredicto se recalcula."""
+    if not informe:
+        return informe
+    for p in informe["pruebas"]:
+        if p["id"] == "menores":
+            p["nivel"], p["texto"] = "ok", "Confirmaste que tienes la autorización de los padres para mostrar a menores."
+    orden = {"ok": 0, "aviso": 1, "error": 2}
+    peor = max((orden[p["nivel"]] for p in informe["pruebas"]), default=0)
+    errores = sum(1 for p in informe["pruebas"] if p["nivel"] == "error")
+    avisos = sum(1 for p in informe["pruebas"] if p["nivel"] == "aviso")
+    informe["veredicto"] = ["listo", "revisar", "error"][peor]
+    informe["resumen"] = ("Listo para revisar: todo lo medible está en orden." if peor == 0
+                          else f"{errores} problema(s) a corregir y {avisos} aviso(s)." if errores else f"{avisos} aviso(s) para revisar antes de publicar.")
+    return informe
+
+
+def planes_numero(valor: float) -> str:
+    return "$" + f"{round(valor):,}".replace(",", ".")
+
+
+def afirmaciones_a_respaldar(palabras: list) -> list[str]:
+    """Afirmaciones de este video que normalmente exigen una prueba («garantizado», «el mejor», «sin riesgo»…), sin repetir."""
+    texto = " ".join(p[2] for p in palabras)
+    plano = planes._plano(texto)
+    encontradas = [nombre for patron, nombre in AFIRMACIONES if re.search(patron, plano)]
+    if re.search(r"100\s?%", texto) and "100 %" not in encontradas:
+        encontradas.append("100 %")
+    return encontradas
+
+
+def hay_menores(palabras: list, marca: str, ficha: str) -> bool:
+    """¿La marca es infantil o el video habla de niños? Entonces hace falta la autorización de los padres."""
+    nombre = marca.lower()
+    texto = " ".join(p[2] for p in palabras)
+    plano = {re.sub(r"[^a-z]", "", unicodedata.normalize("NFD", w.lower()).encode("ascii", "ignore").decode()) for w in texto.split()}
+    return "kids" in nombre or "infantil" in nombre or bool(plano & PALABRAS_MENORES) or bool(re.search(r"\b(ni[ñn][oa]s?|infantil|menores de edad)\b", ficha[:2000].lower()))
 
 
 def _sondear(ruta: Path) -> dict:
@@ -41,7 +81,18 @@ def _negros_y_congelados(ruta: Path, duracion: float) -> tuple[list[tuple[float,
     return negros, [(ini, ini + duraciones[k] if k < len(duraciones) else duracion) for k, ini in enumerate(inicios)]
 
 
-def revisar(video: Path, guion: dict, contexto: dict, plan: dict, musica: dict | None, borrador: bool, objetivo: float = mezcla.OBJETIVO_LUFS) -> dict:
+# Afirmaciones que en publicidad necesitan una prueba que las respalde. Iris no las prohíbe: avisa para que la persona las revise.
+AFIRMACIONES = [
+    (r"\bgarantiz\w+|\bgarantia\b", "garantizado"), (r"\bel mejor\b|\bla mejor\b|\blos mejores\b|\blas mejores\b", "el mejor"), (r"\bnumero (?:uno|1)\b", "número uno"),
+    (r"\bsin (?:ningun )?riesgo\b", "sin riesgo"), (r"\bcura\w*\b|\bmilagro\w*\b", "cura / milagro"), (r"\bgratis\b|\bsin costo\b", "gratis"),
+    (r"\bel mas (?:barato|economico)\b", "el más barato"), (r"\bpara siempre\b|\bde por vida\b", "para siempre"), (r"\binstantane\w+|\bal instante\b", "instantáneo"),
+    (r"\bresultados? (?:asegurad|garantizad)\w*", "resultados asegurados"), (r"\bcien por ciento\b|\b100 por ciento\b", "100 %"),
+]
+PALABRAS_MENORES = {"nino", "nina", "ninos", "ninas", "bebe", "bebes", "hijo", "hija", "hijos", "hijas", "pequeno", "pequena", "pequenos", "pequenas"}
+
+
+def revisar(video: Path, guion: dict, contexto: dict, plan: dict, musica: dict | None, borrador: bool, objetivo: float = mezcla.OBJETIVO_LUFS,
+            extra: dict | None = None) -> dict:
     """Devuelve {"veredicto": "listo"|"revisar"|"error", "resumen": str, "pruebas": [{id, nivel, texto}]}."""
     pruebas: list[dict] = []
 
@@ -103,6 +154,30 @@ def revisar(video: Path, guion: dict, contexto: dict, plan: dict, musica: dict |
         anotar("prohibidas", "error", "Aparece una palabra que la marca dijo que nunca debe aparecer.")
     for alerta in plan.get("alertas", []):
         anotar("director", "aviso", f"El director avisa: {alerta}")
+
+    extra = extra or {}
+    dichas = afirmaciones_a_respaldar(contexto.get("palabras", []))
+    if dichas:
+        anotar("afirmaciones", "aviso", "Dices " + ", ".join(f"«{d}»" for d in dichas[:4]) + ": ten a mano la prueba que lo respalda y las condiciones antes de publicar.")
+    if any(c.get("tipo") == "tarjeta" and (c.get("variante") == "comentario" or c.get("meGusta")) for c in guion.get("capas", [])):
+        anotar("resenas", "aviso", "Hay una tarjeta con aspecto de comentario de un cliente: usa solo comentarios reales y con permiso de quien los escribió; Iris no inventa reseñas.")
+    calc = next((c for c in guion.get("capas", []) if c.get("tipo") == "calculadora"), None)
+    if calc:
+        derivados = [e for e in calc["eventos"] if e.get("derivado")]
+        desajustes = [e for e in calc["eventos"] if e["op"] == "total" and e.get("calculado") is not None and abs(e["calculado"] - e["a"]) > max(1, 0.005 * abs(e["a"]))]
+        if desajustes:
+            e = desajustes[0]
+            anotar("calculadora", "aviso", f"Dices que el total es {planes_numero(e['a'])}, pero con las cifras que dijiste antes la cuenta da {planes_numero(e['calculado'])}. Revisa qué dices o qué descuentos faltan.")
+        elif derivados:
+            anotar("calculadora", "aviso", f"En {len(derivados)} paso(s) de la calculadora el resultado lo calculó Iris con tus cifras (no lo dices en voz alta): revísalo antes de publicar.")
+        else:
+            anotar("calculadora", "ok", "Todas las cifras de la calculadora se dicen en el video")
+    if extra.get("efectos"):
+        anotar("sonidos", "ok", f"{extra['efectos']['cantidad']} efectos de sonido sintetizados ({extra['efectos']['nivel']}): escúchalos una vez; no hay forma de medir el gusto.")
+    if extra.get("menores"):
+        anotar("menores", "ok" if extra.get("permiso_menores") else "aviso",
+               "Confirmaste que tienes la autorización de los padres para mostrar a menores." if extra.get("permiso_menores")
+               else "Aparecen o se mencionan menores: confirma que tienes la autorización por escrito de sus padres antes de publicar (marca la casilla en el video).")
 
     if musica:
         licencia = musica.get("licencia", "sin-confirmar")

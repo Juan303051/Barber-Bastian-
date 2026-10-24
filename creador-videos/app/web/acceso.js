@@ -1,6 +1,7 @@
 // Pantalla de acceso: crear la primera cuenta o entrar. Sigue las guías de Apple: etiqueta fija en cada campo, campo seguro con
 // botón de mostrar, validación del correo al salir del campo, método de autenticación con nombre y beneficios explicados.
 import { api, ErrorApi } from "./api.js";
+import { pieLegal } from "./ui.js";
 import { el, icono, logo, poner } from "./util.js";
 
 const CORREO = /^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$/;
@@ -58,13 +59,19 @@ export function montarAcceso(raiz, { primeraVez, alEntrar }) {
 
   const medidor = primeraVez ? el("div", { clase: "fuerza" }, el("div", { clase: "fuerza-barra", "aria-hidden": "true" }, el("i")), el("div", { clase: "fuerza-texto", "aria-live": "polite" })) : null;
   const recordar = el("input", { type: "checkbox", id: "recordar", checked: primeraVez });
+  // El consentimiento es una acción de la persona: la casilla nunca viene marcada.
+  const acepto = primeraVez ? el("input", { type: "checkbox", id: "acepto", name: "acepto", "aria-describedby": "acepto-msg" }) : null;
+  const mensajeAcepto = primeraVez ? el("div", { id: "acepto-msg", clase: "mensaje-campo", "aria-live": "polite" }) : null;
+  const filaAcepto = primeraVez ? el("div", { clase: "consentimiento" }, acepto, el("label", { for: "acepto" }, "Acepto los ",
+    el("a", { href: "/legal/terminos.html", target: "_blank", rel: "noopener", texto: "términos y condiciones" }), " y la ",
+    el("a", { href: "/legal/privacidad.html", target: "_blank", rel: "noopener", texto: "política de privacidad" }), ".")) : null;
   const aviso = el("div", { clase: "aviso-formulario", role: "alert" });
   const textoBoton = primeraVez ? "Crear cuenta con contraseña" : "Entrar con contraseña";
   const boton = el("button", { type: "submit", clase: "boton principal" }, el("span", { texto: textoBoton }));
   const formulario = el("form", { clase: "formulario", novalidate: true },
     nombre?.grupo, correo.grupo, clave.grupo, medidor,
     el("div", { clase: "fila-recordar" }, el("label", { for: "recordar", texto: "Recordarme en este equipo" }), el("span", { clase: "interruptor" }, recordar, el("span"))),
-    aviso, boton);
+    filaAcepto, mensajeAcepto, aviso, boton);
 
   const olvido = el("div", { clase: "nota-clave", hidden: true }, "Iris funciona en tu equipo, así que la contraseña se restablece desde la Terminal: ", el("code", { texto: "./creador cuenta restablecer tu@correo.com" }));
   const botonOlvido = el("button", { type: "button", texto: "¿Olvidaste tu contraseña?", "aria-expanded": "false" });
@@ -77,9 +84,16 @@ export function montarAcceso(raiz, { primeraVez, alEntrar }) {
       el("li", {}, icono("varita"), "Iris aprende de tus referencias y lo hace por ti."),
       el("li", {}, icono("escudo"), "Tus videos se procesan en este equipo, no en la nube.")),
     formulario,
-    el("div", { clase: "pie-acceso" }, primeraVez ? el("span", { texto: "Después podrás añadir a otras personas de tu equipo." }) : [botonOlvido, olvido]));
+    el("div", { clase: "pie-acceso" }, primeraVez ? el("span", { texto: "Después podrás añadir a otras personas de tu equipo." }) : [botonOlvido, olvido]),
+    pieLegal());
   poner(raiz, el("main", { id: "contenido", clase: "acceso" }, tarjeta));
 
+  const errorAcepto = (texto) => {
+    filaAcepto?.classList.toggle("mal", Boolean(texto));
+    acepto?.setAttribute("aria-invalid", texto ? "true" : "false");
+    if (mensajeAcepto) poner(mensajeAcepto, texto ? [icono("aviso"), el("span", { texto })] : []);
+  };
+  acepto?.addEventListener("change", () => acepto.checked && errorAcepto(""));
   const validarCorreo = () => {
     const valor = correo.entrada.value.trim();
     correo.error(valor && !CORREO.test(valor) ? "Escribe un correo válido, por ejemplo ana@empresa.com." : "");
@@ -125,10 +139,11 @@ export function montarAcceso(raiz, { primeraVez, alEntrar }) {
     if (!clave.entrada.value) { clave.error(primeraVez ? "Elige una contraseña de al menos 8 caracteres." : "Escribe tu contraseña."); primero ??= clave; }
     else if (primeraVez && clave.entrada.value.length < 8) { clave.error("Usa al menos 8 caracteres."); primero ??= clave; }
     else clave.error("");
+    if (acepto && !acepto.checked) { errorAcepto("Para crear la cuenta, acepta los términos y la política de privacidad."); primero ??= { entrada: acepto }; }
     if (primero) { primero.entrada.focus(); agitar(); return; }
 
     ocupado(true);
-    const datos = { correo: correo.entrada.value.trim(), contrasena: clave.entrada.value, recordar: recordar.checked };
+    const datos = { correo: correo.entrada.value.trim(), contrasena: clave.entrada.value, recordar: recordar.checked, ...(acepto ? { acepto: acepto.checked } : {}) };
     try {
       const respuesta = primeraVez ? await api.registro({ ...datos, nombre: nombre.entrada.value.trim() }) : await api.entrar(datos);
       tarjeta.classList.add("sale");
@@ -139,7 +154,10 @@ export function montarAcceso(raiz, { primeraVez, alEntrar }) {
       if (error.estado === 429) bloquear(error.espera || 60);
       const campos = { correo, contrasena: clave, nombre };
       let marcado = null;
-      for (const [llave, texto] of Object.entries(error.campos)) { campos[llave]?.error(texto); marcado ??= campos[llave]; }
+      for (const [llave, texto] of Object.entries(error.campos)) {
+        if (llave === "acepto") { errorAcepto(texto); marcado ??= { entrada: acepto }; continue; }
+        campos[llave]?.error(texto); marcado ??= campos[llave];
+      }
       if (!marcado) poner(aviso, icono("aviso"), el("span", { texto: error.message }));
       (marcado ?? clave).entrada.focus();
       if (!primeraVez && error.estado === 401) clave.entrada.select();

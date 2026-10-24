@@ -43,20 +43,20 @@ def correr(completo: bool) -> list[str]:
     print("Cuentas")
     r = c.get("/api/sesion").json()
     ok(r["primera_vez"] and not r["autenticado"], "primera vez, sin sesión")
-    r = c.post("/api/registro", json={"correo": "mala", "nombre": "", "contrasena": "123"})
+    r = c.post("/api/registro", json={"acepto": True, "correo": "mala", "nombre": "", "contrasena": "123"})
     ok(r.status_code == 422 and set(r.json()["campos"]) == {"correo", "nombre", "contrasena"}, "registro inválido marca los tres campos")
-    r = c.post("/api/registro", json={"correo": "ana@empresa.com", "nombre": "Ana", "contrasena": "password"})
+    r = c.post("/api/registro", json={"acepto": True, "correo": "ana@empresa.com", "nombre": "Ana", "contrasena": "password"})
     ok(r.status_code == 422 and "común" in r.json()["campos"]["contrasena"], "contraseña común rechazada")
-    r = c.post("/api/registro", json={"correo": "Ana@Empresa.com", "nombre": "Ana", "contrasena": CLAVE_ANA, "recordar": True})
+    r = c.post("/api/registro", json={"acepto": True, "correo": "Ana@Empresa.com", "nombre": "Ana", "contrasena": CLAVE_ANA, "recordar": True})
     ok(r.status_code == 200 and "iris_sesion" in c.cookies, "el registro correcto inicia sesión")
     cookie = r.headers["set-cookie"].lower()
     ok("httponly" in cookie and "samesite=strict" in cookie, "cookie HttpOnly y SameSite=Strict")
     ok(c.get("/api/sesion").json()["usuario"]["correo"] == "ana@empresa.com", "el correo se guarda en minúsculas")
-    r = c.post("/api/registro", json={"correo": "luis@empresa.com", "nombre": "Luis", "contrasena": CLAVE_LUIS})
+    r = c.post("/api/registro", json={"acepto": True, "correo": "luis@empresa.com", "nombre": "Luis", "contrasena": CLAVE_LUIS})
     ok(r.status_code == 200 and not r.json()["entro"], "con sesión se añade a otra persona sin cambiar de sesión")
     c.post("/api/salir")
     ok(c.get("/api/sesion").json()["autenticado"] is False, "salir cierra la sesión")
-    r = c.post("/api/registro", json={"correo": "x@y.com", "nombre": "X", "contrasena": "una-clave-larga-3"})
+    r = c.post("/api/registro", json={"acepto": True, "correo": "x@y.com", "nombre": "X", "contrasena": "una-clave-larga-3"})
     ok(r.status_code == 403, "sin sesión no se pueden crear cuentas")
     for i in range(5):
         r = c.post("/api/entrar", json={"correo": "ana@empresa.com", "contrasena": f"equivocada{i}"})
@@ -88,12 +88,58 @@ def correr(completo: bool) -> list[str]:
     r = c.put(f"/api/trabajos/{jid}/video?nombre=toma.mp4", content=toma.read_bytes())
     ok(r.status_code == 200 and 2.5 < r.json()["duracion"] < 3.5, f"video válido: dura {r.json().get('duracion')} s")
     ok(c.get(f"/api/trabajos/{jid}/miniatura").status_code == 200, "se genera la miniatura")
-    r = c.post("/api/interpretar", json={"prompt": "Resalta las palabras dinero y semanas. Quita las pausas. Comenta EDITOR. Con transiciones", "opciones": {}}).json()
-    ok(any("dinero" in f["texto"] for f in r["entendido"]) and r["sugerencias"][0]["clave"] == "quitar_pausas" and r["pendiente"],
-       "interpretar: entiende, sugiere y avisa de lo que no hace")
-    c.patch(f"/api/trabajos/{jid}", json={"prompt": "Resalta las palabras dinero y semanas. Comenta EDITOR", "titulo": "Prueba", "opciones": {"calidad": "borrador", "intruso": 1}})
+    r = c.post("/api/interpretar", json={"prompt": "Resalta las palabras dinero y semanas. Quita las pausas. Comenta EDITOR. Con transiciones y texto detrás de la persona", "opciones": {"_v": 2}}).json()
+    valores = r["efectivo"]["valores"]
+    ok(any("dinero" in f["texto"] for f in r["entendido"]) and valores["quitar_pausas"] and valores["transiciones"] and r["efectivo"]["origenes"]["quitar_pausas"] == "texto" and len(r["pendiente"]) == 1,
+       "interpretar: entiende, aplica lo pedido sin pedir confirmación y avisa solo de lo que todavía no hace")
+    r = c.post("/api/interpretar", json={"prompt": "Quita las pausas", "opciones": {"_v": 2, "quitar_pausas": False}}).json()
+    ok(r["efectivo"]["valores"]["quitar_pausas"] is False and r["efectivo"]["origenes"]["quitar_pausas"] == "manual", "interpretar: lo que la persona tocó a mano manda sobre el texto")
+    c.patch(f"/api/trabajos/{jid}", json={"prompt": "Resalta las palabras dinero y semanas. Comenta EDITOR", "titulo": "Prueba",
+                                          "opciones": {"calidad": "borrador", "intruso": 1, "formato": "inventado", "transiciones": "si", "logo": True, "acabado": "cine"}})
     t = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid)
-    ok(t["opciones"] == {"calidad": "borrador"} and t["titulo"] == "Prueba", "solo se guardan las opciones permitidas")
+    ok(t["opciones"] == {"_v": 2, "calidad": "borrador", "logo": True, "acabado": "cine"} and t["titulo"] == "Prueba", f"solo se guardan las opciones conocidas y con el tipo correcto ({t['opciones']})")
+    ok({f["id"] for f in c.get("/api/estado").json()["formatos"]} == {"auto", "subtitulos", "dinero", "antes-despues", "pasos"}, "el panel recibe el catálogo de formatos")
+
+    print("Escenas")
+    jid_e = c.post("/api/trabajos", json={"marca": "al-volante"}).json()["id"]
+    ids = []
+    for nombre in ("uno.mp4", "dos.mp4", "tres.mp4"):
+        r = c.put(f"/api/trabajos/{jid_e}/escenas?nombre={nombre}", content=toma.read_bytes())
+        ids.append(r.json()["escena"]["id"] if r.status_code == 200 else None)
+    t = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid_e)
+    ok(None not in ids and [e["nombre"] for e in t["escenas"]] == ["uno.mp4", "dos.mp4", "tres.mp4"] and t["fuente_nombre"] == "3 escenas" and 8.5 < t["fuente_duracion"] < 9.5,
+       f"se suben tres escenas en orden ({t['fuente_nombre']}, {t['fuente_duracion']} s)")
+    ok("unir" in [p["clave"] for p in t["pasos"]] and "unir" not in [p["clave"] for p in next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid)["pasos"]], "con varias escenas aparece el paso «Uniendo tus escenas»; con una no")
+    ok(c.get(f"/api/trabajos/{jid_e}/escenas/{ids[0]}/miniatura").status_code == 200 and c.get(f"/api/trabajos/{jid_e}/escenas/zzz/miniatura").status_code == 404, "cada escena tiene su miniatura; un identificador inválido da 404")
+    ok(c.patch(f"/api/trabajos/{jid_e}/escenas", json={"orden": list(reversed(ids))}).status_code == 200
+       and [e["nombre"] for e in next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid_e)["escenas"]] == ["tres.mp4", "dos.mp4", "uno.mp4"], "se pueden reordenar")
+    ok(c.patch(f"/api/trabajos/{jid_e}/escenas", json={"orden": ids[:2]}).status_code == 422 and c.patch(f"/api/trabajos/{jid_e}/escenas", json={"orden": ["a", "b", "c"]}).status_code == 422, "un orden que no coincide con las escenas se rechaza")
+    ok(c.delete(f"/api/trabajos/{jid_e}/escenas/{ids[1]}").status_code == 200 and c.delete(f"/api/trabajos/{jid_e}/escenas/{ids[1]}").status_code == 404, "se quita una escena (y quitarla otra vez da 404)")
+    t = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid_e)
+    ok(len(t["escenas"]) == 2 and t["fuente_nombre"] == "2 escenas", "quedan dos escenas y el resumen se actualiza")
+    ok(c.put(f"/api/trabajos/{jid_e}/escenas?nombre=falso.mp4", content=b"no es video").status_code == 422 and c.put(f"/api/trabajos/{jid_e}/escenas?nombre=n.txt", content=b"x").status_code == 415,
+       "una escena falsa (422) o con otra extensión (415) se rechaza")
+    ok(c.put(f"/api/trabajos/{jid_e}/escenas?nombre=otra.mp4", content=toma.read_bytes()).status_code == 200 and len(next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid_e)["escenas"]) == 3,
+       "y se puede seguir añadiendo")
+    for escena in next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid_e)["escenas"]:
+        c.delete(f"/api/trabajos/{jid_e}/escenas/{escena['id']}")
+    t = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid_e)
+    ok(t["escenas"] == [] and t["fuente_nombre"] is None and c.post(f"/api/trabajos/{jid_e}/crear").status_code == 422, "sin escenas, no se puede crear el video")
+
+    print("Logo de la marca")
+    from .pruebas_escenas import _png
+    logo_png = temporal / "logo.png"
+    _png(logo_png, 120, 120, True)
+    ok(c.put("/api/marcas/al-volante/logo?nombre=logo.png", content=logo_png.read_bytes()).status_code == 422, "sin confirmar que se tiene derecho a usar el logo, no se sube")
+    ok(c.put("/api/marcas/al-volante/logo?nombre=logo.png&derechos=1", content=b"no es una imagen").status_code == 422, "un archivo que no es imagen se rechaza")
+    ok(c.put("/api/marcas/al-volante/logo?nombre=logo.gif&derechos=1", content=logo_png.read_bytes()).status_code == 415, "una extensión que no es de imagen se rechaza (415)")
+    ok(c.put("/api/marcas/inventada/logo?nombre=logo.png&derechos=1", content=logo_png.read_bytes()).status_code == 404, "una marca que no existe da 404")
+    r = c.put("/api/marcas/al-volante/logo?nombre=logo.png&derechos=1", content=logo_png.read_bytes())
+    ok(r.status_code == 200 and r.json()["transparente"] and r.json()["ancho"] == 120, f"el logo se sube y se mide ({r.json()})")
+    ok(next(m for m in c.get("/api/marcas").json() if m["id"] == "al-volante")["logo"] is True and c.get("/api/marcas/al-volante/logo").headers["content-type"] == "image/png", "la marca muestra que tiene logo y se puede ver")
+    ok(not (Path(os.environ["CREADOR_EMPRESAS"]) / "al-volante" / "logo.png").exists(), "el logo vive en los datos privados, no en la carpeta de la marca (que se sube al repositorio)")
+    ok(c.delete("/api/marcas/al-volante/logo").status_code == 200 and next(m for m in c.get("/api/marcas").json() if m["id"] == "al-volante")["logo"] is False, "y se puede quitar")
+    c.put("/api/marcas/al-volante/logo?nombre=logo.png&derechos=1", content=logo_png.read_bytes())
     r = c.post("/api/referencias/enlace", json={"url": "hola"})
     ok(r.status_code == 422, "un enlace que no es enlace se rechaza")
 
@@ -183,6 +229,7 @@ def correr(completo: bool) -> list[str]:
         plan["momentos"] = [{"t": 1.5, "tipo": "acercamiento", "motivo": ""}, {"t": 3.8, "tipo": "contador", "motivo": "", "valor": 5000}]
         falso = _Falso(_respuesta(json.dumps(plan)))
         ia._fabrica = lambda: falso
+        ia.guardar_ajustes({"consentimiento": True})  # la persona confirma qué datos se envían a la IA
         try:
             jid2 = c.post("/api/trabajos", json={"marca": "al-volante", "titulo": "Con IA"}).json()["id"]
             c.put(f"/api/trabajos/{jid2}/video?nombre=toma-voz.mp4", content=toma_voz.read_bytes())
@@ -209,6 +256,61 @@ def correr(completo: bool) -> list[str]:
         final.write_bytes(c.get(f"/api/trabajos/{jid2}/resultado").content)
         medida = medidas.medir(final)
         ok(medida is not None and abs(medida["lufs"] + 14) <= 1.0, f"el audio final quedó a {medida['lufs'] if medida else '?'} LUFS (objetivo −14)")
+
+        print("Dos escenas con calculadora, transiciones, sonidos y logo (voz e IA simuladas)")
+        import numeros
+        from .pruebas_direccion import DINERO
+        escena_a, escena_b = temporal / "escena-a.mp4", temporal / "escena-b.mp4"
+        for destino, color in ((escena_a, "0x1b3a6b"), (escena_b, "0x6b1b3a")):
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"color=c={color}:s=360x640:d=7:r=30", "-i", str(voz), "-map", "0:v", "-map", "1:a", "-c:v", "libx264",
+                            "-pix_fmt", "yuv420p", "-c:a", "aac", "-t", "7", str(destino)], check=True)
+        palabras_d = numeros.unir_fragmentos([list(p) for p in DINERO])
+        original_voz = analizar._voz
+        analizar._voz = lambda ruta, dur, modelo, avance=None, idioma=None: {"idioma": "es", "palabras_por_min": 150, "gancho_texto": "Cuesta 8.500.000 pesos", "palabras": palabras_d,
+                                                                           "segmentos": [{"ini": 1.0, "fin": 10.7, "texto": " ".join(p[2] for p in palabras_d)}]}
+        plan = _plan_de_la_ia()
+        plan.update(formato="dinero", calculadora={"usar": True, "ajustes": []}, transiciones={"usar": True, "estilo": "barrido"}, sonidos={"nivel": "sutil"}, logo={"usar": True, "estilo": "cierre"},
+                    requisitos=[{"pedido": "Calculadora de dinero", "capacidad": "calculadora", "nota": ""}, {"pedido": "Que huela a café", "capacidad": "otra", "nota": "Iris no puede hacerlo"}])
+        falso = _Falso(_respuesta(json.dumps(plan)))
+        ia._fabrica = lambda: falso
+        ia.guardar_ajustes({"consentimiento": True})
+        try:
+            jid3 = c.post("/api/trabajos", json={"marca": "al-volante", "titulo": "Dinero"}).json()["id"]
+            for nombre, ruta in (("b.mp4", escena_b), ("a.mp4", escena_a)):
+                c.put(f"/api/trabajos/{jid3}/escenas?nombre={nombre}", content=ruta.read_bytes())
+            orden = [e["id"] for e in sorted(next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid3)["escenas"], key=lambda e: e["nombre"])]
+            c.patch(f"/api/trabajos/{jid3}/escenas", json={"orden": orden})
+            c.patch(f"/api/trabajos/{jid3}", json={"prompt": "Contador de dinero: muestra una calculadora con cada cifra. Con transiciones, efectos de sonido y un logo animado.",
+                                                   "opciones": {"calidad": "borrador", "musica": False}})
+            c.post(f"/api/trabajos/{jid3}/crear")
+            inicio = time.time()
+            etapas3 = []
+            while time.time() - inicio < 900:
+                t3 = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid3)
+                if t3["etapa"] and t3["etapa"] not in etapas3:
+                    etapas3.append(t3["etapa"])
+                if t3["estado"] in {"listo", "error", "cancelado"}:
+                    break
+                time.sleep(0.7)
+        finally:
+            analizar._voz = original_voz
+            ia._fabrica = None
+        ok(t3["estado"] == "listo", f"termina bien ({t3['estado']}{': ' + str(t3['error']) if t3['error'] else ''}, {round(time.time() - inicio)} s)")
+        ok("Uniendo tus escenas" in etapas3 and t3["fuente_nombre"] == "2 escenas", f"pasó por «Uniendo tus escenas» ({etapas3})")
+        notas3 = " | ".join(t3["notas"])
+        ok("Calculadora de dinero" in notas3 and "transición" in notas3 and "Logo animado" in notas3 and "efectos de sonido" in notas3, f"las notas cuentan calculadora, transiciones, logo y sonidos ({notas3[:200]})")
+        estados3 = {f["capacidad"]: f["estado"] for f in t3["cumplimiento"]}
+        ok(estados3.get("calculadora") == estados3.get("transiciones") == estados3.get("sonidos") == estados3.get("logo") == "hecho" and estados3.get("otra") == "no",
+           f"el resumen de lo pedido: lo hecho como «hecho» y lo imposible como «no» ({estados3})")
+        niveles3 = {p["id"]: p for p in t3["calidad"]["pruebas"]}
+        ok("calculadora" in niveles3 and "sonidos" in niveles3 and niveles3["volumen"]["nivel"] == "ok", "el control de calidad revisó la calculadora y los sonidos")
+        final3 = temporal / "resultado-dinero.mp4"
+        final3.write_bytes(c.get(f"/api/trabajos/{jid3}/resultado").content)
+        sonda3 = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height,duration", "-of", "csv=p=0", str(final3)], capture_output=True, text=True).stdout
+        ok("video,540,960" in sonda3 and "audio" in sonda3, f"el resultado mide 540×960 con audio ({sonda3.split()[0] if sonda3 else '?'})")
+        medida3 = medidas.medir(final3)
+        ok(medida3 is not None and abs(medida3["lufs"] + 14) <= 1.0 and medida3["pico_db"] <= -0.7, f"con efectos de sonido el audio queda a {medida3['lufs'] if medida3 else '?'} LUFS y {medida3['pico_db'] if medida3 else '?'} dBTP")
+        ok(not list((Path(os.environ["CREADOR_EMPRESAS"]) / "al-volante" / "videos" / "propios").glob("iris-*")), "al terminar no queda ningún archivo temporal (video ni logo) en la carpeta de la marca")
     return fallos
 
 

@@ -2,6 +2,7 @@
 import { api } from "./api.js";
 import { montarAcceso } from "./acceso.js";
 import { montarPanel } from "./panel.js";
+import { mostrarAvisoCookies } from "./ui.js";
 import { el, logo, poner } from "./util.js";
 
 const raiz = document.getElementById("raiz");
@@ -33,5 +34,6 @@ async function arrancar() {
   }
 }
 
+mostrarAvisoCookies();
 document.addEventListener("sesion-caducada", () => { if (panel) mostrarAcceso(false); });
 arrancar();

@@ -1,33 +1,48 @@
-// Tarjeta de un video: formulario (video + instrucciones), construcción en vivo y resultado. Se crea una vez y se va actualizando,
+// Tarjeta de un video: escenas, instrucciones, formato, extras, construcción en vivo y resultado. Se crea una vez y se va actualizando,
 // así lo que la persona está escribiendo nunca se pierde cuando llegan novedades del servidor.
 import { api, ErrorApi, subir } from "./api.js";
 import { anunciar, aviso, dialogo } from "./ui.js";
 import { aproximado, debounce, el, esVideo, establecerProgreso, formatoTiempo, icono, poner } from "./util.js";
 
 const IDIOMAS = [["", "Automático"], ["es", "Español"], ["en", "English"], ["pt", "Português"]];
-const INTERRUPTORES = [
-  ["quitar_pausas", "Quitar pausas largas", "Corta los silencios para que el video no se sienta lento.", false],
-  ["acercamientos", "Acercamientos", "Un zoom suave en una de cada dos frases para dar ritmo.", true],
-  ["insignias", "Pasos numerados", "Si dices «primero, segundo…», pone el 1, 2, 3 en pantalla.", true],
-  ["contadores", "Contadores de cifras", "Si dices una cifra, la muestra contando hacia arriba.", true],
-  ["cierre", "Cierre con palabra clave", "Si dices «comenta EDITOR», lo destaca al final.", true],
-  ["color_referencias", "Usar el color de mis referencias", "Toma el color dominante de los videos de referencia.", false],
-  ["musica", "Música de fondo", "Elige una canción de tu biblioteca y la mezcla bajo tu voz.", true],
-  ["ia", "Director con IA", "Una IA propone el gancho, qué resaltar y el acabado.", true],
-  ["borrador", "Borrador rápido", "A la mitad de tamaño: se construye mucho más deprisa para probar.", false],
-];
 const ACABADOS = [["auto", "Que decida Iris"], ["natural", "Natural"], ["calido", "Cálido"], ["frio", "Frío"], ["cine", "Cine"], ["vibrante", "Vibrante"]];
-const SUGERENCIAS = [
-  ["Palabras en grande", "Resalta las palabras: "],
+const FORMATOS_BASE = [{ id: "auto", nombre: "Automático", ayuda: "Iris elige según lo que pidas y lo que digas." }];
+
+// Lo que Iris puede añadir: [clave, icono, nombre, ayuda]. Un interruptor que la persona no toca sigue lo que pidió en su texto.
+const EXTRAS = [
+  ["calculadora", "calculadora", "Calculadora de dinero", "Suma, resta y confirma cada cifra que dices."],
+  ["transiciones", "transicion", "Transiciones", "Un efecto en cada corte entre escenas."],
+  ["sonidos", "sonido", "Efectos de sonido", "Whoosh, teclas y caja, siempre bajo tu voz."],
+  ["logo", "logo", "Logo animado", "El logo de la marca entra con brillo al final."],
+  ["quitar_pausas", "tijeras", "Quitar pausas largas", "Corta los silencios para que no se sienta lento."],
+  ["musica", "musica", "Música de fondo", "Elige una canción de tu biblioteca bajo tu voz."],
+];
+const AJUSTES = [
+  ["acercamientos", "Acercamientos", "Un zoom suave en una de cada dos frases para dar ritmo."],
+  ["insignias", "Pasos numerados", "Si dices «primero, segundo…», pone el 1, 2, 3 en pantalla."],
+  ["contadores", "Contadores de cifras", "Una cifra suelta sube contando (si hay calculadora, no se usan)."],
+  ["cierre", "Cierre con palabra clave", "Si dices «comenta EDITOR», lo destaca al final."],
+  ["color_referencias", "Usar el color de mis referencias", "Toma el color dominante de los videos de referencia."],
+  ["ia", "Director con IA", "Una IA propone el gancho, qué resaltar y el acabado."],
+  ["borrador", "Borrador rápido", "A la mitad de tamaño: se construye mucho más deprisa para probar."],
+];
+// Atajos: frases completas. Lo que hay entre `[` y `]` queda seleccionado para escribir encima.
+const ATAJOS = [
+  ["Calculadora de dinero", "Muestra una calculadora que sume y reste cada cifra que diga."],
+  ["Transiciones", "Agrega transiciones con efecto entre escenas."],
+  ["Efectos de sonido", "Agrega efectos de sonido sutiles."],
+  ["Logo animado", "Cierra con el logo animado."],
+  ["Palabras en grande", "Resalta las palabras: [precio, descuento]."],
   ["Quitar pausas", "Quita las pausas largas."],
+  ["Cierre con «Comenta…»", "Cierra pidiendo que comenten la palabra: [EDITOR]."],
   ["Antes y después", "Hazlo en formato antes y después."],
-  ["Cierre con «Comenta…»", "Cierra pidiendo que comenten la palabra: "],
-  ["Subtítulos abajo", "Subtítulos abajo."],
 ];
 const ESTADOS_ACTIVOS = new Set(["en_cola", "trabajando"]);
+const ORIGEN_TEXTO = { texto: "Lo pediste en tu texto", formato: "Viene con este formato", manual: "" };
 
 export function crearTrabajo(id, contexto) {
-  const local = { editando: false, fraccionSubida: null, ultimoFotograma: -1, cuadros: [], firmaPasos: "", ultimoPaso: null, interpretadoEn: 0, anunciado: "", viendoVivo: false };
+  const local = { editando: false, subidas: new Map(), contador: 0, ultimoFotograma: -1, firmaPasos: "", interpretadoEn: 0, anunciado: "", viendoVivo: false,
+                  opciones: { _v: 2 }, escenas: [], firmaEscenas: "", efectivo: null, datos: null, firmaExtras: "" };
 
   // ───────────────────────────────────────────────────────── cabecera
   const numero = el("span", { clase: "trabajo-numero" });
@@ -37,56 +52,85 @@ export function crearTrabajo(id, contexto) {
   const borrar = el("button", { type: "button", clase: "boton suave cuadrado peligro", "aria-label": "Quitar este video", title: "Quitar este video" }, icono("papelera"));
   const cabecera = el("div", { clase: "trabajo-cabecera" }, numero, titulo, cajaMarca, borrar);
 
-  // ───────────────────────────────────────────────────────── formulario: video de origen
-  const entradaArchivo = el("input", { type: "file", accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", hidden: true, "aria-label": "Elegir el video que quieres editar" });
-  const zonaSoltar = el("div", { clase: "soltar", role: "button", tabindex: "0", "aria-label": "Elegir o soltar el video que quieres editar" },
-    icono("subir"), el("strong", { texto: "Suelta tu video aquí" }), el("span", { clase: "fino", texto: "o haz clic para elegirlo" }));
-  const miniatura = el("img", { alt: "Vista previa del video que subiste", hidden: true });
-  const progresoSubida = el("div", { clase: "progreso", hidden: true }, el("div", { clase: "progreso-pista" }, el("i")), el("div", { clase: "progreso-texto" }, el("span")));
-  const visor = el("div", { clase: "visor" }, zonaSoltar, miniatura, progresoSubida);
-  const nombreArchivo = el("div", { clase: "nombre" });
-  const cambiar = el("button", { type: "button", clase: "boton pequeno", hidden: true }, icono("subir"), "Cambiar video");
-  const fuente = el("div", { clase: "fuente" }, visor, nombreArchivo, cambiar, entradaArchivo);
+  // ───────────────────────────────────────────────────────── 1 · escenas
+  const entradaArchivo = el("input", { type: "file", accept: "video/*,.mp4,.mov,.m4v,.webm,.mkv", multiple: true, hidden: true, "aria-label": "Elegir las escenas del video" });
+  const listaEscenas = el("ol", { clase: "escenas", "aria-label": "Escenas del video, en orden" });
+  const zonaSoltar = el("div", { clase: "soltar escenas-soltar", role: "button", tabindex: "0", "aria-label": "Añadir escenas: haz clic o suelta tus videos aquí" },
+    icono("subir"), el("strong", { texto: "Suelta tus escenas aquí" }), el("span", { clase: "fino", texto: "o haz clic para elegirlas · puedes elegir varias · MP4, MOV, WEBM" }));
+  const totalEscenas = el("p", { clase: "ayuda escenas-total" });
+  const cajaEscenas = el("div", { clase: "escenas-caja" },
+    el("h3", { clase: "bloque-titulo" }, el("span", { clase: "bloque-icono" }, icono("pelicula")), "Tus escenas"),
+    el("p", { clase: "bloque-sub", texto: "Sube las tomas tal como las grabaste. Iris las une en este orden." }),
+    listaEscenas, zonaSoltar, totalEscenas, entradaArchivo);
 
-  // ───────────────────────────────────────────────────────── formulario: instrucciones
-  const pedido = el("textarea", { id: `pedido-${id}`, maxlength: "4000", rows: "4", placeholder: "Ejemplo: Subtítulos dinámicos, resalta las palabras dinero y gratis, quita las pausas y cierra pidiendo que comenten EDITOR." });
-  const chips = el("div", { clase: "sugerencias", role: "group", "aria-label": "Atajos para escribir lo que quieres" },
-    SUGERENCIAS.map(([texto, frase]) => el("button", { type: "button", datos: { frase } }, icono("mas", "pequeno-icono"), texto)));
+  // ───────────────────────────────────────────────────────── 2 · instrucciones y formato
+  const pedido = el("textarea", { id: `pedido-${id}`, maxlength: "4000", rows: "5", placeholder: "Ejemplo: Contador de dinero: muestra una calculadora con cada precio y descuento que diga. Agrega transiciones entre escenas, efectos de sonido y el logo animado al final." });
+  const atajos = el("div", { clase: "sugerencias", role: "group", "aria-label": "Atajos para escribir lo que quieres" },
+    ATAJOS.map(([texto, frase]) => el("button", { type: "button", datos: { frase } }, icono("mas", "pequeno-icono"), texto)));
+  const nombreFormato = `formato-${id}`;
+  const grupoFormato = el("div", { clase: "formatos", role: "radiogroup", "aria-label": "Formato del video" });
+  const ayudaFormato = el("p", { clase: "ayuda formato-ayuda", "aria-live": "polite" });
   const entendido = el("div", { clase: "entendido", "aria-live": "off" });
-  const sugeridas = el("div", { clase: "sugeridas" });
-  const interruptores = new Map();
-  let ayudaIA = null;
-  const filas = INTERRUPTORES.map(([clave, nombre, ayuda, defecto]) => {
-    const entrada = el("input", { type: "checkbox", id: `opc-${clave}-${id}`, checked: defecto });
-    interruptores.set(clave, { entrada, defecto });
+  const cajaPedido = el("div", { clase: "pedido-caja" },
+    el("h3", { clase: "bloque-titulo" }, el("span", { clase: "bloque-icono" }, icono("texto")), "Cuéntale a Iris cómo lo quieres"),
+    el("div", { clase: "campo" }, el("label", { for: pedido.id, clase: "solo-lector", texto: "Instrucciones para este video" }), el("div", { clase: "entrada" }, pedido)),
+    atajos,
+    el("div", { clase: "formato-bloque" }, el("span", { clase: "rotulo-pequeno", id: `rot-formato-${id}`, texto: "Formato" }), grupoFormato, ayudaFormato),
+    entendido);
+
+  // ───────────────────────────────────────────────────────── 3 · extras
+  const extras = new Map();
+  const tarjetasExtras = EXTRAS.map(([clave, nombreIcono, nombre, ayuda]) => {
+    const entrada = el("input", { type: "checkbox", id: `extra-${clave}-${id}` });
+    const origen = el("span", { clase: "extra-origen" });
+    const extra = el("span", { clase: "extra-extra" });
+    const nodo = el("div", { clase: "extra", datos: { clave } },
+      el("span", { clase: "extra-icono" }, icono(nombreIcono)),
+      el("label", { clase: "extra-texto", for: entrada.id }, el("strong", { texto: nombre }), el("span", { texto: ayuda }), origen),
+      el("span", { clase: "interruptor" }, entrada, el("span")), extra);
+    extras.set(clave, { entrada, origen, nodo, extra });
+    return nodo;
+  });
+  const botonLogo = el("button", { type: "button", clase: "boton pequeno" }, icono("subir"), "Subir logo");
+  extras.get("logo").extra.append(botonLogo);
+  const menores = el("input", { type: "checkbox", id: `menores-${id}` });
+  const cajaMenores = el("div", { clase: "extra extra-aviso", hidden: true },
+    el("span", { clase: "extra-icono" }, icono("escudo")),
+    el("label", { clase: "extra-texto", for: menores.id }, el("strong", { texto: "Autorización de los padres" }),
+      el("span", { texto: "Esta marca habla a niños o de niños: confirmo que tengo la autorización por escrito de los padres o tutores de los menores que aparezcan." })),
+    el("span", { clase: "interruptor" }, menores, el("span")));
+  const cajaExtras = el("div", { clase: "extras-caja" },
+    el("h3", { clase: "bloque-titulo" }, el("span", { clase: "bloque-icono" }, icono("varita")), "Efectos y piezas"),
+    el("p", { clase: "bloque-sub", texto: "Lo que pides en tu texto se enciende solo. Aquí lo corriges con un toque." }),
+    el("div", { clase: "extras" }, tarjetasExtras, cajaMenores));
+
+  // ───────────────────────────────────────────────────────── más opciones
+  const ajustes = new Map();
+  const filasAjustes = AJUSTES.map(([clave, nombre, ayuda]) => {
+    const entrada = el("input", { type: "checkbox", id: `opc-${clave}-${id}` });
+    ajustes.set(clave, entrada);
     const textoAyuda = el("span", { texto: ayuda });
-    if (clave === "ia") ayudaIA = textoAyuda;
+    if (clave === "ia") ajustes.set("ia-ayuda", textoAyuda);
     return el("div", { clase: "opcion" }, el("label", { clase: "texto", for: entrada.id }, el("strong", { texto: nombre }), textoAyuda), el("span", { clase: "interruptor" }, entrada, el("span")));
   });
   const acabado = el("select", { id: `acabado-${id}` }, ACABADOS.map(([valor, texto]) => el("option", { value: valor, texto })));
-  const botonTest = el("button", { type: "button", clase: "boton pequeno" }, icono("director"), "Hacer o cambiar el test");
-  const nombreFormato = `formato-${id}`;
-  const radios = [["subtitulos", "Subtítulos dinámicos"], ["antes-despues", "Antes y después"]].map(([valor, texto]) =>
-    el("label", {}, el("input", { type: "radio", name: nombreFormato, value: valor, checked: valor === "subtitulos" }), texto));
   const idioma = el("select", { id: `idioma-${id}` }, IDIOMAS.map(([valor, texto]) => el("option", { value: valor, texto })));
+  const botonTest = el("button", { type: "button", clase: "boton pequeno" }, icono("director"), "Hacer o cambiar el test");
   const avanzado = el("details", { clase: "avanzado" },
-    el("summary", {}, icono("abajo"), "Opciones avanzadas"),
-    el("div", { clase: "opciones" },
-      el("div", { clase: "opcion" }, el("div", { clase: "texto" }, el("strong", { texto: "Formato" }), el("span", { texto: "Cómo se muestra tu video." })), el("div", { clase: "segmentado", role: "radiogroup", "aria-label": "Formato" }, radios)),
-      filas,
+    el("summary", {}, icono("abajo"), "Más opciones"),
+    el("div", { clase: "opciones" }, filasAjustes,
       el("div", { clase: "opcion" }, el("label", { clase: "texto", for: acabado.id }, el("strong", { texto: "Acabado de color" }), el("span", { texto: "Un ajuste suave de color y contraste sobre tu toma." })), el("div", { clase: "entrada" }, acabado, icono("abajo"))),
       el("div", { clase: "opcion" }, el("label", { clase: "texto", for: idioma.id }, el("strong", { texto: "Idioma del video" }), el("span", { texto: "Si lo dejas en automático, Iris lo detecta." })), el("div", { clase: "entrada" }, idioma, icono("abajo"))),
       el("div", { clase: "opcion" }, el("div", { clase: "texto" }, el("strong", { texto: "Test del director" }), el("span", { texto: "Tono, ritmo, música y lo que nunca debe aparecer en esta marca." })), botonTest)));
-  const cuerpoPedido = el("div", { clase: "pedido" },
-    el("div", { clase: "campo" }, el("label", { for: pedido.id, clase: "rotulo", texto: "Cuéntale a Iris cómo lo quieres" }), el("div", { clase: "entrada" }, pedido)),
-    chips, entendido, sugeridas, avanzado);
-  const cuerpoFormulario = el("div", { clase: "trabajo-cuerpo" }, fuente, cuerpoPedido);
 
-  // ───────────────────────────────────────────────────────── formulario: pie
+  const cuerpoFormulario = el("div", { clase: "trabajo-cuerpo" }, cajaEscenas, cajaPedido);
+  const cuerpoExtras = el("div", { clase: "trabajo-extras" }, cajaExtras, avanzado);
+
+  // ───────────────────────────────────────────────────────── pie del formulario
   const estadoTexto = el("div", { clase: "estado-texto" });
-  const botonCrear = el("button", { type: "button", clase: "boton" }, icono("varita"), "Crear este video");
+  const botonCrear = el("button", { type: "button", clase: "boton principal" }, icono("varita"), "Crear este video");
   const pie = el("div", { clase: "trabajo-pie" }, estadoTexto, botonCrear);
-  const formulario = el("div", {}, cuerpoFormulario, pie);
+  const formulario = el("div", {}, cuerpoFormulario, cuerpoExtras, pie);
 
   // ───────────────────────────────────────────────────────── construcción en vivo
   const imagenVivo = el("img", { alt: "Vista previa del video mientras se construye", hidden: true });
@@ -106,143 +150,217 @@ export function crearTrabajo(id, contexto) {
   const video = el("video", { controls: true, playsinline: true, preload: "metadata" });
   const marcoResultado = el("div", { clase: "telefono" }, el("div", { clase: "pantalla" }, video));
   const tituloListo = el("div", { clase: "listo" }, icono("ok-circulo"), el("span", { texto: "Tu video está listo" }));
-  const notasListo = el("div", { clase: "notas" });
+  const notasListo = el("details", { clase: "avanzado notas-detalle" });
+  const cumplimientoCaja = el("div", { clase: "cumplimiento" });
   const calidadCaja = el("div", { clase: "calidad" });
   const direccionCaja = el("div", { clase: "direccion" });
   const descargar = el("a", { clase: "boton principal", href: `/api/trabajos/${id}/resultado?descargar=1` }, icono("descargar"), "Descargar");
   const editarOtra = el("button", { type: "button", clase: "boton" }, icono("varita"), "Cambiar y volver a crear");
   const resultado = el("div", { clase: "resultado", hidden: true }, marcoResultado,
-    el("div", { clase: "vivo-lado" }, tituloListo, calidadCaja, direccionCaja, notasListo, el("div", { clase: "resultado-acciones" }, descargar, editarOtra)));
+    el("div", { clase: "vivo-lado" }, tituloListo, el("div", { clase: "resultado-acciones" }, descargar, editarOtra), cumplimientoCaja, calidadCaja, direccionCaja, notasListo));
 
   const nodo = el("article", { clase: "trabajo", "aria-labelledby": `titulo-${id}` },
     el("h3", { id: `titulo-${id}`, clase: "solo-lector" }), cabecera, formulario, vivo, resultado);
   const rotuloOculto = nodo.querySelector("h3");
 
-  // ───────────────────────────────────────────────────────── comportamiento
-  const opcionesActuales = () => {
-    const o = { formato: radios.map((r) => r.querySelector("input")).find((i) => i.checked)?.value || "subtitulos", idioma: idioma.value || null, acabado: acabado.value || "auto", calidad: interruptores.get("borrador").entrada.checked ? "borrador" : "completa" };
-    for (const [clave, { entrada }] of interruptores) if (clave !== "borrador") o[clave] = entrada.checked;
-    return o;
-  };
+  // ───────────────────────────────────────────────────────── guardar y entender
   const guardarPedido = debounce(() => api.trabajoCambiar(id, { prompt: pedido.value }).catch(() => {}), 700);
   const interpretar = debounce(async () => {
     try {
-      const r = await api.interpretar(pedido.value, opcionesActuales());
+      const r = await api.interpretar(pedido.value, local.opciones, marca.value);
       local.interpretadoEn = Date.now();
-      pintarEntendido(r.entendido, r.pendiente, r.sugerencias);
+      local.efectivo = r.efectivo;
+      pintarEntendido(r.entendido, r.pendiente);
+      pintarEfectivo();
     } catch { /* se queda lo anterior */ }
   }, 400);
-  const guardarOpciones = () => api.trabajoCambiar(id, { opciones: opcionesActuales() }).then(() => interpretar.ahora()).catch((e) => aviso(e.message, { tipo: "error" }));
+  const guardarOpciones = () => api.trabajoCambiar(id, { opciones: local.opciones }).then(() => interpretar.ahora()).catch((e) => aviso(e.message, { tipo: "error" }));
+  const tocar = (clave, valor) => {
+    local.interpretadoEn = Date.now(); // mientras se guarda, las novedades del servidor no pisan lo que la persona acaba de tocar
+    local.opciones = { ...local.opciones, _v: 2, [clave]: valor };
+    if (valor === null) delete local.opciones[clave];
+    return guardarOpciones();
+  };
 
   pedido.addEventListener("input", () => { guardarPedido(); interpretar(); });
   pedido.addEventListener("blur", () => guardarPedido.ahora());
-  chips.addEventListener("click", (e) => {
+  atajos.addEventListener("click", (e) => {
     const boton = e.target.closest("button");
     if (!boton) return;
-    const separador = pedido.value && !/\s$/.test(pedido.value) ? " " : "";
-    pedido.value += separador + boton.dataset.frase;
-    pedido.focus();
-    pedido.setSelectionRange(pedido.value.length, pedido.value.length);
-    pedido.dispatchEvent(new Event("input"));
+    const frase = boton.dataset.frase;
+    const limpia = frase.replace(/[[\]]/g, "");
+    const inicioMarca = frase.indexOf("["), finMarca = frase.indexOf("]") - 1;
+    if (!pedido.value.includes(limpia)) {
+      const separador = pedido.value && !/\n$/.test(pedido.value) ? (/\s$/.test(pedido.value) ? "" : " ") : "";
+      const base = pedido.value + separador;
+      pedido.value = base + limpia;
+      pedido.focus();
+      if (inicioMarca >= 0) pedido.setSelectionRange(base.length + inicioMarca, base.length + finMarca); else pedido.setSelectionRange(pedido.value.length, pedido.value.length);
+      pedido.dispatchEvent(new Event("input"));
+    } else {
+      pedido.focus();
+      const desde = pedido.value.indexOf(limpia);
+      pedido.setSelectionRange(desde + (inicioMarca >= 0 ? inicioMarca : 0), desde + (inicioMarca >= 0 ? finMarca : limpia.length));
+      aviso("Ese atajo ya está en tu texto.");
+    }
   });
-  for (const { entrada } of interruptores.values()) entrada.addEventListener("change", guardarOpciones);
-  radios.forEach((r) => r.querySelector("input").addEventListener("change", guardarOpciones));
-  idioma.addEventListener("change", guardarOpciones);
-  acabado.addEventListener("change", guardarOpciones);
+  for (const [clave, { entrada }] of extras) entrada.addEventListener("change", () => tocar(clave, entrada.checked));
+  for (const [clave, entrada] of ajustes) {
+    if (clave === "ia-ayuda") continue;
+    entrada.addEventListener("change", () => (clave === "borrador" ? tocar("calidad", entrada.checked ? "borrador" : "completa") : tocar(clave, entrada.checked)));
+  }
+  menores.addEventListener("change", () => tocar("permiso_menores", menores.checked));
+  idioma.addEventListener("change", () => tocar("idioma", idioma.value || null));
+  acabado.addEventListener("change", () => tocar("acabado", acabado.value || "auto"));
   botonTest.addEventListener("click", () => contexto.perfil(marca.value));
-  sugeridas.addEventListener("click", async (e) => {
-    const boton = e.target.closest("button");
-    if (!boton) return;
-    const o = opcionesActuales();
-    o[boton.dataset.clave] = boton.dataset.clave === "formato" ? "antes-despues" : true;
-    await api.trabajoCambiar(id, { opciones: o }).catch(() => {});
-    sincronizarOpciones(o, true);
-    interpretar.ahora();
-  });
+  botonLogo.addEventListener("click", () => contexto.logo(marca.value));
 
   titulo.addEventListener("change", () => api.trabajoCambiar(id, { titulo: titulo.value }).catch(() => {}));
   titulo.addEventListener("keydown", (e) => { if (e.key === "Enter") titulo.blur(); });
-  marca.addEventListener("change", () => api.trabajoCambiar(id, { marca: marca.value || null }).catch((e) => aviso(e.message, { tipo: "error" })));
+  marca.addEventListener("change", () => api.trabajoCambiar(id, { marca: marca.value || null }).then(() => contexto.refrescar()).catch((e) => aviso(e.message, { tipo: "error" })));
   borrar.addEventListener("click", () => contexto.quitar(id));
   editarOtra.addEventListener("click", () => { local.editando = true; contexto.refrescar(); });
 
+  // ───────────────────────────────────────────────────────── escenas: subir, ordenar, quitar
   const elegir = () => entradaArchivo.click();
   zonaSoltar.addEventListener("click", elegir);
   zonaSoltar.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); elegir(); } });
-  cambiar.addEventListener("click", elegir);
-  entradaArchivo.addEventListener("change", () => { const archivo = entradaArchivo.files[0]; entradaArchivo.value = ""; if (archivo) subirVideo(archivo); });
+  entradaArchivo.addEventListener("change", () => { const archivos = [...entradaArchivo.files]; entradaArchivo.value = ""; subirEscenas(archivos); });
   const sobre = (e) => {
     e.preventDefault();
     const items = [...(e.dataTransfer?.items || [])];
     const valido = !items.length || items.some((i) => i.kind === "file" && (i.type === "" || i.type.startsWith("video/")));
-    visor.classList.toggle("sobre", valido);
-    visor.classList.toggle("invalido", !valido);
+    cajaEscenas.classList.toggle("sobre", valido);
+    cajaEscenas.classList.toggle("invalido", !valido);
     if (e.dataTransfer) e.dataTransfer.dropEffect = valido ? "copy" : "none";
   };
-  visor.addEventListener("dragenter", sobre);
-  visor.addEventListener("dragover", sobre);
-  visor.addEventListener("dragleave", (e) => { if (!visor.contains(e.relatedTarget)) visor.classList.remove("sobre", "invalido"); });
-  visor.addEventListener("drop", (e) => {
-    e.preventDefault();
-    visor.classList.remove("sobre", "invalido");
-    const archivo = [...e.dataTransfer.files].find(esVideo);
-    if (!archivo) { aviso("Ese archivo no es un video compatible. Usa MP4, MOV, M4V, WEBM o MKV.", { tipo: "error" }); return; }
-    subirVideo(archivo);
-  });
+  cajaEscenas.addEventListener("dragenter", sobre);
+  cajaEscenas.addEventListener("dragover", sobre);
+  cajaEscenas.addEventListener("dragleave", (e) => { if (!cajaEscenas.contains(e.relatedTarget)) cajaEscenas.classList.remove("sobre", "invalido"); });
+  cajaEscenas.addEventListener("drop", (e) => { e.preventDefault(); cajaEscenas.classList.remove("sobre", "invalido"); subirEscenas([...e.dataTransfer.files]); });
 
-  async function subirVideo(archivo) {
-    if (!esVideo(archivo)) { aviso("Ese archivo no es un video compatible. Usa MP4, MOV, M4V, WEBM o MKV.", { tipo: "error" }); return; }
-    local.fraccionSubida = 0;
-    pintarSubida();
-    try {
-      await subir(`/api/trabajos/${id}/video`, archivo, (f) => { local.fraccionSubida = f; pintarSubida(); });
-      aviso("Video subido. Ahora cuéntale a Iris cómo lo quieres.");
-    } catch (error) {
-      aviso(error.message, { tipo: "error" });
-    } finally {
-      local.fraccionSubida = null;
-      pintarSubida();
-      contexto.refrescar();
+  async function subirEscenas(archivos) {
+    const validos = archivos.filter(esVideo);
+    if (archivos.length > validos.length) aviso(`${archivos.length - validos.length} archivo(s) no son videos compatibles (usa MP4, MOV, M4V, WEBM o MKV) y se omitieron.`, { tipo: "error" });
+    validos.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    for (const archivo of validos) {
+      const clave = `local-${++local.contador}`;
+      local.subidas.set(clave, { nombre: archivo.name, fraccion: 0, error: null });
+      pintarEscenas();
+      try {
+        await subir(`/api/trabajos/${id}/escenas`, archivo, (f) => { local.subidas.get(clave).fraccion = f; pintarEscenas(); });
+        local.subidas.delete(clave);
+      } catch (error) {
+        local.subidas.get(clave).error = `${archivo.name}: ${error.message}`;
+        aviso(`${archivo.name}: ${error.message}`, { tipo: "error" });
+        setTimeout(() => { local.subidas.delete(clave); pintarEscenas(); }, 6000);
+      }
+      await contexto.refrescar();
     }
+    if (validos.length) anunciar(`${validos.length} escena(s) subida(s).`);
   }
 
-  function pintarSubida() {
-    const subiendo = local.fraccionSubida !== null;
-    progresoSubida.hidden = !subiendo;
-    zonaSoltar.classList.toggle("cargando", subiendo);
-    if (subiendo) {
-      establecerProgreso(progresoSubida.querySelector(".progreso-pista"), local.fraccionSubida);
-      progresoSubida.querySelector("span").textContent = local.fraccionSubida >= 0.999 ? "Comprobando el video…" : `Subiendo… ${Math.round(local.fraccionSubida * 100)} %`;
+  async function moverEscena(indice, delta) {
+    const nueva = [...local.escenas];
+    const destino = indice + delta;
+    if (destino < 0 || destino >= nueva.length) return;
+    [nueva[indice], nueva[destino]] = [nueva[destino], nueva[indice]];
+    local.escenas = nueva;
+    pintarEscenas();
+    anunciar(`Escena movida a la posición ${destino + 1}.`);
+    try { await api.escenasOrdenar(id, nueva.map((e) => e.id)); } catch (error) { aviso(error.message, { tipo: "error" }); }
+    contexto.refrescar();
+  }
+
+  async function quitarEscena(escena, indice) {
+    try { await api.escenaBorrar(id, escena.id); anunciar(`Escena ${indice + 1} quitada.`); } catch (error) { aviso(error.message, { tipo: "error" }); }
+    contexto.refrescar();
+  }
+
+  function pintarEscenas() {
+    const subiendo = [...local.subidas];
+    const firma = JSON.stringify([local.escenas.map((e) => [e.id, e.nombre, e.duracion]), subiendo.map(([k, s]) => [k, Math.round(s.fraccion * 50), s.error])]);
+    if (firma !== local.firmaEscenas) {
+      local.firmaEscenas = firma;
+      const total = local.escenas.length;
+      const filas = local.escenas.map((e, i) => el("li", { clase: "escena" },
+        el("img", { src: `/api/trabajos/${id}/escenas/${e.id}/miniatura`, alt: `Vista previa de la escena ${i + 1}`, loading: "lazy" }),
+        el("div", { clase: "escena-datos" }, el("strong", { texto: `Escena ${i + 1}` }), el("span", { clase: "escena-nombre", texto: e.nombre }), el("span", { clase: "ayuda", texto: formatoTiempo(e.duracion) })),
+        el("div", { clase: "escena-acciones" },
+          el("button", { type: "button", clase: "boton suave cuadrado pequeno", "aria-label": `Subir la escena ${i + 1}`, title: "Subir", disabled: i === 0, enClick: () => moverEscena(i, -1) }, icono("arriba")),
+          el("button", { type: "button", clase: "boton suave cuadrado pequeno", "aria-label": `Bajar la escena ${i + 1}`, title: "Bajar", disabled: i === total - 1, enClick: () => moverEscena(i, 1) }, icono("abajo")),
+          el("button", { type: "button", clase: "boton suave cuadrado pequeno peligro", "aria-label": `Quitar la escena ${i + 1}`, title: "Quitar", enClick: () => quitarEscena(e, i) }, icono("papelera")))));
+      const pendientes = subiendo.map(([, s]) => {
+        const pista = el("div", { clase: "progreso-pista" }, el("i"));
+        establecerProgreso(pista, s.fraccion);
+        return el("li", { clase: `escena subiendo ${s.error ? "con-error" : ""}` },
+          el("div", { clase: "escena-miniatura vacia" }, icono("pelicula")),
+          el("div", { clase: "escena-datos" }, el("strong", { texto: s.error ? "No se pudo subir" : "Subiendo…" }), el("span", { clase: "escena-nombre", texto: s.error || s.nombre }),
+            s.error ? null : el("div", { clase: "progreso" }, pista, el("div", { clase: "progreso-texto" }, el("span", { texto: s.fraccion >= 0.999 ? "Comprobando…" : `${Math.round(s.fraccion * 100)} %` })))));
+      });
+      poner(listaEscenas, filas, pendientes);
     }
+    const segundos = local.escenas.reduce((suma, e) => suma + e.duracion, 0);
+    totalEscenas.textContent = local.escenas.length ? `${local.escenas.length} escena${local.escenas.length === 1 ? "" : "s"} · ${formatoTiempo(segundos)} en total` : "";
+    listaEscenas.hidden = !local.escenas.length && !local.subidas.size;
+    zonaSoltar.classList.toggle("compacta", local.escenas.length > 0 || local.subidas.size > 0);
+    zonaSoltar.querySelector("strong").textContent = local.escenas.length ? "Añadir más escenas" : "Suelta tus escenas aquí";
   }
 
   botonCrear.addEventListener("click", () => contexto.crear(id));
   cancelar.addEventListener("click", async () => {
     const decision = await dialogo({
-      titulo: "¿Cancelar este video?", texto: "Se pierde lo que Iris lleva construido de este video. Tu video original y tus instrucciones se quedan guardados.",
+      titulo: "¿Cancelar este video?", texto: "Se pierde lo que Iris lleva construido de este video. Tus escenas y tus instrucciones se quedan guardadas.",
       acciones: [{ texto: "Cancelar video", valor: "si", clase: "peligro-lleno" }, { texto: "Seguir creando", valor: "no", clase: "principal" }],
     });
     if (decision === "si") { await api.cancelar(id).catch((e) => aviso(e.message, { tipo: "error" })); contexto.refrescar(); }
   });
 
-  const iconoDe = { texto: "texto", estrella: "estrella", mensaje: "mensaje", tijeras: "tijeras", color: "color", musica: "musica" };
-  function pintarEntendido(lista, pendientes, sugerencias) {
-    const filasEntendido = lista.map((f) => el("li", {}, icono(iconoDe[f.icono] || "info"), f.texto));
-    const filasPendiente = (pendientes || []).map((t) => el("li", { clase: "pendiente" }, icono("aviso"), t));
-    poner(entendido, el("h4", { texto: "Esto entendí" }), el("ul", {}, filasEntendido, filasPendiente));
-    poner(sugeridas, (sugerencias || []).map((s) => el("div", { clase: "sugerida" }, el("span", { texto: `Pediste algo parecido a «${s.texto}».` }),
-      el("button", { type: "button", clase: "boton pequeno", datos: { clave: s.clave }, texto: "Activar" }))));
+  // ───────────────────────────────────────────────────────── «Esto haré», formato y extras
+  const iconoDe = { texto: "texto", estrella: "estrella", mensaje: "mensaje", tijeras: "tijeras", color: "color", musica: "musica", calculadora: "calculadora", transicion: "transicion", sonido: "sonido", logo: "logo" };
+  function pintarEntendido(lista, pendientes) {
+    const iaActiva = Boolean(contexto.ia?.().activa) && local.opciones.ia !== false;
+    poner(entendido, el("h4", { texto: "Esto haré" }),
+      el("ul", {}, lista.map((f) => el("li", {}, icono(iconoDe[f.icono] || "info"), f.texto)), (pendientes || []).map((t) => el("li", { clase: "pendiente" }, icono("aviso"), t))),
+      iaActiva ? el("p", { clase: "ayuda", texto: "Con la IA activa, el director ajusta los detalles al construir. Al final verás qué se hizo con cada cosa que pediste." }) : null);
   }
 
-  function sincronizarOpciones(o, forzar = false) {
-    if (!forzar && avanzado.contains(document.activeElement)) return;
-    for (const [clave, { entrada, defecto }] of interruptores) {
-      const valor = clave === "borrador" ? o.calidad === "borrador" : (o[clave] ?? defecto);
-      if (entrada.checked !== valor) entrada.checked = valor;
+  function pintarFormatos() {
+    const lista = contexto.formatos?.().length ? contexto.formatos() : FORMATOS_BASE;
+    const firma = lista.map((f) => f.id).join(",");
+    if (firma !== local.firmaFormatos) {
+      local.firmaFormatos = firma;
+      poner(grupoFormato, lista.map((f) => el("label", { clase: "formato", title: f.ayuda },
+        el("input", { type: "radio", name: nombreFormato, value: f.id, enChange: () => tocar("formato", f.id) }), el("span", { texto: f.nombre }))));
     }
-    radios.forEach((r) => { const i = r.querySelector("input"); i.checked = i.value === (o.formato || "subtitulos"); });
-    idioma.value = o.idioma || "";
-    acabado.value = o.acabado || "auto";
+    const elegido = local.opciones.formato || "auto";
+    for (const r of grupoFormato.querySelectorAll("input")) r.checked = r.value === elegido;
+    const actual = lista.find((f) => f.id === elegido) || lista[0];
+    const ef = local.efectivo;
+    const deducido = elegido === "auto" && ef && ef.formato_origen === "texto" ? lista.find((f) => f.id === ef.formato) : null;
+    ayudaFormato.textContent = deducido ? `Automático: según tu texto, Iris eligió «${deducido.nombre}». ${deducido.ayuda}` : actual?.ayuda || "";
+  }
+
+  function pintarEfectivo() {
+    const ef = local.efectivo;
+    if (!ef) return;
+    const tieneLogo = Boolean(local.datos?.tiene_logo);
+    for (const [clave, { entrada, origen, nodo: tarjeta }] of extras) {
+      const valor = ef.valores[clave];
+      if (document.activeElement !== entrada) entrada.checked = valor === true;
+      const textoOrigen = valor === null ? "Lo decide el director" : (ORIGEN_TEXTO[ef.origenes[clave]] ?? "");
+      if (origen.textContent !== textoOrigen) origen.textContent = textoOrigen;
+      origen.classList.toggle("destacado", ef.origenes[clave] === "texto" || ef.origenes[clave] === "formato");
+      tarjeta.classList.toggle("encendida", valor === true);
+    }
+    for (const [clave, entrada] of ajustes) {
+      if (clave === "ia-ayuda" || document.activeElement === entrada) continue;
+      entrada.checked = clave === "borrador" ? local.opciones.calidad === "borrador" : ef.valores[clave] !== false && ef.valores[clave] !== null;
+    }
+    botonLogo.hidden = false;
+    poner(botonLogo, icono("subir"), tieneLogo ? "Cambiar logo" : "Subir logo");
+    extras.get("logo").nodo.classList.toggle("falta", ef.valores.logo === true && !tieneLogo);
+    pintarFormatos();
   }
 
   // ───────────────────────────────────────────────────────── construcción en vivo: pintar
@@ -305,17 +423,30 @@ export function crearTrabajo(id, contexto) {
 
   function pintarCalidad(c) {
     if (!c) { poner(calidadCaja); return; }
-    const [iconoNombre, titulo, tono] = ETIQUETA_CALIDAD[c.veredicto] || ETIQUETA_CALIDAD.revisar;
+    const [iconoNombre, tituloCalidad, tono] = ETIQUETA_CALIDAD[c.veredicto] || ETIQUETA_CALIDAD.revisar;
     const orden = { error: 0, aviso: 1, ok: 2 };
     const pruebas = [...c.pruebas].sort((a, b) => orden[a.nivel] - orden[b.nivel]);
     const problemas = pruebas.filter((p) => p.nivel !== "ok");
     const correctas = pruebas.filter((p) => p.nivel === "ok");
     const fila = (p) => el("li", { clase: `prueba ${p.nivel}` }, icono(ICONO_NIVEL[p.nivel]), el("span", { texto: p.texto }));
+    const pideMenores = c.pruebas.some((p) => p.id === "menores" && p.nivel !== "ok");
+    const confirmar = pideMenores ? el("button", { type: "button", clase: "boton pequeno", enClick: async () => { await api.permisoMenores(id, true).catch((e) => aviso(e.message, { tipo: "error" })); contexto.refrescar(); } },
+      icono("escudo"), "Confirmo que tengo la autorización de los padres") : null;
     poner(calidadCaja,
-      el("h4", { clase: `calidad-titulo ${tono}` }, icono(iconoNombre), titulo),
+      el("h4", { clase: `calidad-titulo ${tono}` }, icono(iconoNombre), tituloCalidad),
       el("p", { clase: "ayuda", texto: c.resumen }),
-      problemas.length ? el("ul", { clase: "pruebas" }, problemas.map(fila)) : null,
+      problemas.length ? el("ul", { clase: "pruebas" }, problemas.map(fila)) : null, confirmar,
       correctas.length ? el("details", { clase: "avanzado pruebas-ok" }, el("summary", {}, icono("abajo"), `${correctas.length} prueba(s) en orden`), el("ul", { clase: "pruebas" }, correctas.map(fila))) : null);
+  }
+
+  const ICONO_CUMPLIMIENTO = { hecho: "ok-circulo", parcial: "aviso", no: "x", omitido: "pausa" };
+  const TEXTO_CUMPLIMIENTO = { hecho: "Hecho", parcial: "A medias", no: "No se pudo", omitido: "Apagado por ti" };
+  function pintarCumplimiento(filas) {
+    if (!filas?.length) { poner(cumplimientoCaja); return; }
+    poner(cumplimientoCaja,
+      el("h4", {}, icono("ok"), "Lo que pediste"),
+      el("ul", { clase: "pruebas" }, filas.map((f) => el("li", { clase: `prueba cumple-${f.estado}` }, icono(ICONO_CUMPLIMIENTO[f.estado] || "info"),
+        el("span", {}, el("strong", { texto: f.pedido }), " · ", el("span", { clase: `estado-cumple ${f.estado}`, texto: TEXTO_CUMPLIMIENTO[f.estado] || f.estado }), f.detalle ? el("span", { clase: "ayuda detalle-cumple", texto: f.detalle }) : null)))));
   }
 
   function pintarDireccion(t) {
@@ -331,8 +462,7 @@ export function crearTrabajo(id, contexto) {
       el("div", { clase: "chips" }, etiqueta, musica, el("span", { clase: "etiqueta-chip", texto: `Acabado ${d.look}` })),
       d.resumen ? el("p", { clase: "ayuda", texto: d.resumen }) : null,
       d.gancho ? el("p", { clase: "gancho" }, el("strong", { texto: "Gancho: " }), `«${d.gancho}»`) : null,
-      d.alternativas?.length ? el("p", { clase: "ayuda", texto: `Otras ideas de gancho: ${d.alternativas.map((a) => `«${a}»`).join(" · ")}` }) : null,
-      null);
+      d.alternativas?.length ? el("p", { clase: "ayuda", texto: `Otras ideas de gancho: ${d.alternativas.map((a) => `«${a}»`).join(" · ")}` }) : null);
   }
 
   function pintarResultado(t) {
@@ -343,17 +473,21 @@ export function crearTrabajo(id, contexto) {
       video.poster = `/api/trabajos/${id}/miniatura?v=${Math.round(t.actualizado)}`;
     }
     marcoResultado.classList.toggle("horizontal", !t.vertical);
+    pintarCumplimiento(t.cumplimiento);
     pintarCalidad(t.calidad);
     pintarDireccion(t);
-    poner(notasListo, (t.notas || []).map((n) => el("div", {}, "· ", n)), t.mensaje ? el("div", { clase: "ayuda", texto: t.mensaje }) : null);
+    poner(notasListo, el("summary", {}, icono("abajo"), `Qué hizo Iris, paso a paso${t.mensaje ? ` · ${t.mensaje}` : ""}`),
+      el("ul", { clase: "notas" }, (t.notas || []).map((n) => el("li", { texto: n }))));
+    notasListo.hidden = !(t.notas || []).length;
   }
 
   // ───────────────────────────────────────────────────────── actualizar con lo que dice el servidor
   function actualizar(t, indice, marcas) {
+    local.datos = t;
     numero.textContent = String(indice + 1);
     rotuloOculto.textContent = `Video ${indice + 1}: ${t.titulo}`;
     if (document.activeElement !== titulo && titulo.value !== t.titulo) titulo.value = t.titulo;
-    const firmaMarcas = marcas.map((m) => m.id).join(",");
+    const firmaMarcas = marcas.map((m) => `${m.id}:${m.logo ? 1 : 0}`).join(",");
     if (marca.dataset.firma !== firmaMarcas) {
       marca.dataset.firma = firmaMarcas;
       poner(marca, el("option", { value: "", texto: "Sin marca" }), marcas.map((m) => el("option", { value: m.id, texto: m.nombre })));
@@ -373,27 +507,39 @@ export function crearTrabajo(id, contexto) {
     if (modo === "resultado") pintarResultado(t);
 
     const iaInfo = contexto.ia ? contexto.ia() : { disponible: false };
-    const interruptorIA = interruptores.get("ia").entrada;
+    const interruptorIA = ajustes.get("ia");
     interruptorIA.disabled = !iaInfo.disponible || !iaInfo.activa;
-    if (ayudaIA) ayudaIA.textContent = !iaInfo.disponible ? "Sin clave de IA: se usan reglas. Configúrala en el menú de tu cuenta." : !iaInfo.activa ? "La IA está apagada en los ajustes." : "Una IA propone el gancho, qué resaltar y el acabado.";
+    const costo = iaInfo.costo_estimado_usd ? ` · ≈ US$ ${iaInfo.costo_estimado_usd.toFixed(2).replace(".", ",")} por video (lo cobra Anthropic)` : "";
+    ajustes.get("ia-ayuda").textContent = !iaInfo.disponible ? "Sin clave de IA: se usan reglas. Configúrala en el menú de tu cuenta."
+      : !iaInfo.consentida ? "Falta confirmar qué datos se envían: abre «Director con IA» en el menú de tu cuenta."
+      : !iaInfo.activa ? "La IA está apagada en los ajustes." : `Una IA propone el gancho, qué resaltar y el acabado${costo}.`;
 
-    const tieneVideo = Boolean(t.fuente_nombre);
-    zonaSoltar.hidden = tieneVideo;
-    miniatura.hidden = !tieneVideo || !t.miniatura;
-    cambiar.hidden = !tieneVideo;
-    if (tieneVideo && t.miniatura && !miniatura.src.includes(`v=${Math.round(t.actualizado)}`) && local.fraccionSubida === null) miniatura.src = `/api/trabajos/${id}/miniatura?v=${Math.round(t.actualizado)}`;
-    poner(nombreArchivo, tieneVideo ? `${t.fuente_nombre} · ${formatoTiempo(t.fuente_duracion || 0)}` : "");
+    local.escenas = t.escenas || [];
+    pintarEscenas();
 
     if (document.activeElement !== pedido && pedido.value !== (t.prompt || "") && Date.now() - local.interpretadoEn > 1500) pedido.value = t.prompt || "";
-    sincronizarOpciones(t.opciones || {});
-    if (Date.now() - local.interpretadoEn > 2000) pintarEntendido(t.entendido, t.pendiente, t.sugerencias);
+    if (!formulario.contains(document.activeElement) || document.activeElement === pedido) {
+      if (Date.now() - local.interpretadoEn > 1500 || !local.efectivo) local.opciones = { ...(t.opciones || {}), _v: 2 };
+    }
+    if (document.activeElement !== idioma) idioma.value = local.opciones.idioma || "";
+    if (document.activeElement !== acabado) acabado.value = local.opciones.acabado || "auto";
+    cajaMenores.hidden = !t.menores_marca;
+    if (document.activeElement !== menores) menores.checked = Boolean(local.opciones.permiso_menores);
+    if (Date.now() - local.interpretadoEn > 2000 || !local.efectivo) {
+      local.efectivo = t.efectivo;
+      pintarEntendido(t.entendido, t.pendiente);
+    }
+    pintarEfectivo();
 
-    botonCrear.disabled = !tieneVideo || local.fraccionSubida !== null;
-    botonCrear.title = tieneVideo ? "" : "Sube primero el video que quieres editar";
+    const tieneEscenas = local.escenas.length > 0;
+    const subiendo = local.subidas.size > 0 && [...local.subidas.values()].some((s) => !s.error);
+    botonCrear.disabled = !tieneEscenas || subiendo;
+    botonCrear.title = tieneEscenas ? "" : "Sube primero al menos una escena";
     estadoTexto.className = `estado-texto ${t.estado === "error" ? "error" : ""}`;
+    const costoIA = iaInfo.activa && local.opciones.ia !== false && iaInfo.costo_estimado_usd ? ` Con IA: ≈ US$ ${iaInfo.costo_estimado_usd.toFixed(2).replace(".", ",")} (lo cobra Anthropic).` : "";
     const texto = t.estado === "error" ? t.error : t.estado === "cancelado" ? "Lo cancelaste. Puedes volver a crearlo cuando quieras." : t.estado === "interrumpido" ? t.mensaje
-      : tieneVideo ? "Listo para crear." : "Sube un video para empezar.";
-    poner(estadoTexto, t.estado === "error" ? icono("aviso") : tieneVideo ? icono("ok-circulo") : icono("info"), texto || "");
+      : tieneEscenas ? `Listo para crear.${costoIA}` : "Sube al menos una escena para empezar.";
+    poner(estadoTexto, t.estado === "error" ? icono("aviso") : tieneEscenas ? icono("ok-circulo") : icono("info"), texto || "");
     botonCrear.lastChild.textContent = t.estado === "error" || t.estado === "cancelado" || t.estado === "interrumpido" ? "Intentar de nuevo" : t.estado === "listo" ? "Crear otra vez" : "Crear este video";
   }
 

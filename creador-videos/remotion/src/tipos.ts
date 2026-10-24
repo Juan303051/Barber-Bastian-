@@ -65,6 +65,22 @@ export type EstiloPalabras = {
 };
 
 export type Tiempo = { ini: number; fin: number };
+
+/**
+ * Un paso de la calculadora de dinero (segundos del video). `de`/`a` son el valor que muestra antes y después; con `a` nulo solo se muestra la cifra
+ * (el valor de un regalo, por ejemplo) y el total no cambia.
+ */
+export type EventoCalculo = {
+  t: number;
+  dur: number;
+  op: "fijar" | "sumar" | "restar" | "restar_pct" | "total" | "mostrar";
+  valor: number;
+  de: number | null;
+  a: number | null;
+  etiqueta?: string;
+};
+export type EstiloTransicion = "destello" | "barrido" | "impacto";
+export type EstiloLogo = "cierre" | "intro" | "marca";
 /** Centro del elemento en % del cuadro (por defecto, el centro). */
 export type Posicion = { x?: number; y?: number };
 
@@ -88,6 +104,9 @@ export type Capa = (
   | { tipo: "texto-curvo"; texto: string; forma?: "arco" | "onda"; tamano?: number; color?: string }
   | { tipo: "palabra"; texto: string; serif?: boolean; color?: string; tamano?: number }
   | { tipo: "titulo"; texto: string; color?: string; tamano?: number }
+  | { tipo: "calculadora"; eventos: EventoCalculo[]; moneda?: string }
+  | { tipo: "transicion"; estilo: EstiloTransicion }
+  | { tipo: "logo"; archivo: string; estilo: EstiloLogo }
 ) &
   Tiempo &
   Posicion;

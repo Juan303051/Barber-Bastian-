@@ -3,19 +3,33 @@ No necesita clave ni internet: la IA se simula, y una parte usa el SDK real cont
 Se ejecuta con ./creador probar (o: python -m servidor.pruebas_direccion)."""
 from __future__ import annotations
 
+import atexit
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
-from . import datos
+# Antes de importar `datos`: estas pruebas escriben ajustes de la IA y consentimientos, y nunca deben tocar tus cuentas, tus videos ni tu clave real.
+_CARPETA_DATOS = tempfile.mkdtemp(prefix="iris-datos-prueba-")
+os.environ["IRIS_DATOS"] = _CARPETA_DATOS
+atexit.register(shutil.rmtree, _CARPETA_DATOS, ignore_errors=True)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "herramientas"))
+
+from . import datos  # noqa: E402
 from .direccion import ia, perfil as perfiles, plan as planes, rubrica
 
 TRANSCRIPCION = ("Primero, revisa el aceite cada 5000 kilómetros. Segundo, cambia el filtro cuando se vea sucio. "
                  "Tercero, comenta MOTO y te enviamos la guía gratis.")
+
+
+# Lo que dice un video con precios, tal como lo parte Whisper («8» «.500» «.000»).
+DINERO = [[1.0, 1.3, "Cuesta"], [1.3, 1.6, "8"], [1.6, 2.2, ".500"], [2.2, 2.9, ".000"], [2.9, 3.2, "pesos."], [4.0, 4.3, "Tiene"], [4.3, 4.6, "un"], [4.6, 5.2, "descuento"],
+              [5.2, 5.4, "de"], [5.4, 5.6, "un"], [5.6, 6.1, "millón"], [6.1, 6.4, "de"], [6.4, 6.9, "pesos."], [8.0, 8.3, "Te"], [8.3, 8.7, "queda"], [8.7, 8.9, "en"],
+              [8.9, 9.1, "7"], [9.1, 9.7, ".500"], [9.7, 10.3, ".000"], [10.3, 10.7, "pesos."]]
 
 
 def _palabras(texto: str, inicio: float = 0.4, ritmo: float = 0.42) -> list:
@@ -33,6 +47,10 @@ def _contexto(perfil: dict | None = None, musica: dict | None = None, config: di
             "config": config or {"acercamientos": True, "contadores": True, "insignias": True, "cierre": True, "cta": None, "claves": [], "formato": "subtitulos",
                                  "posicion": None, "max_palabras": None, "acento": None, "color_referencias": False, "borrador": False, "quitar_pausas": False,
                                  "idioma": None, "musica": True, "acabado": "auto", "ia": True, "pendiente": [], "sugerencias": {}}}
+
+
+def _analisis_sin_dinero() -> dict:
+    return {"duracion": 14.0, "ancho": 576, "alto": 1024, "voz": {"palabras": _palabras(TRANSCRIPCION)}}
 
 
 def _plan_de_la_ia() -> dict:
@@ -103,6 +121,10 @@ def correr() -> list[str]:
             fallos.append(titulo)
 
     datos.abrir()
+    print("Aislamiento")
+    ok(Path(datos.DATOS).resolve() == Path(_CARPETA_DATOS).resolve() and Path(datos.DATOS).resolve() != (Path(__file__).resolve().parents[1] / "datos"),
+       "estas pruebas usan una carpeta temporal: no tocan tus cuentas ni la clave de la IA que guardaste")
+
     print("Test del director (perfil de la marca)")
     limpias, errores = perfiles.validar({"tono": "premium", "ritmo": "volando", "publico": "  Dueños\x00 de moto  ", "intruso": "x", "musica": "nunca", "nunca": "Garantizado, el mejor del mundo; precio"})
     ok(limpias.get("tono") == "premium" and "ritmo" in errores and "intruso" not in limpias, "valida las opciones y rechaza las que no existen")
@@ -140,6 +162,62 @@ def correr() -> list[str]:
     ok(sin_pista["musica"]["usar"] is False, "si la biblioteca no tiene una pista lista, la IA no puede proponer música")
     ok(planes.plan_base(_contexto())["origen"] == "reglas" and planes.plan_base(_contexto())["gancho"]["texto"] == "", "el plan por reglas no inventa ganchos")
 
+    print("Plan completo: formato, calculadora, transiciones, sonidos, logo y lo que se pidió")
+    plan0, _ = planes.sanear(_plan_de_la_ia(), contexto)
+    ok(plan0["formato"] is None and plan0["requisitos"] == [] and plan0["calculadora"] == {"usar": False, "ajustes": []} and plan0["transiciones"]["usar"] is False
+       and plan0["sonidos"]["nivel"] == "ninguno" and plan0["logo"]["usar"] is False, "si la IA no dice nada de lo nuevo, queda apagado")
+    dinero = DINERO
+    ctx2 = {**_contexto(perfil), "palabras": dinero, "duracion": 14.0, "cortes": [{"t": 4.0, "tipo": "escena"}], "tiene_logo": True, "escenas": 2,
+            "brief": "Contador de dinero con transiciones, efectos de sonido y logo animado"}
+    bruto = {**_plan_de_la_ia(), "formato": "dinero", "calculadora": {"usar": True, "ajustes": [{"t": 5.4, "op": "mostrar"}, {"t": 12.0, "op": "restar"}, {"t": 5.4, "op": "inventar"}]},
+             "transiciones": {"usar": True, "estilo": "impacto"}, "sonidos": {"nivel": "marcado"}, "logo": {"usar": True, "estilo": "intro"},
+             "requisitos": [{"pedido": "Calculadora de dinero", "capacidad": "calculadora", "nota": ""}, {"pedido": "Calculadora de dinero", "capacidad": "calculadora", "nota": "repetido"},
+                            {"pedido": "Que huela a café", "capacidad": "olfato", "nota": "Iris no puede hacerlo"}, {"pedido": "", "capacidad": "logo", "nota": ""}]}
+    plan2, avisos2 = planes.sanear(bruto, ctx2)
+    ok(plan2["formato"] == "dinero" and plan2["calculadora"]["usar"] and plan2["calculadora"]["ajustes"] == [{"t": 5.4, "op": "mostrar"}],
+       f"calculadora: solo se aceptan ajustes sobre cifras que se dicen, con una operación válida ({plan2['calculadora']['ajustes']})")
+    ok(sum("ajuste de la calculadora" in a for a in avisos2) == 2, "y se avisa de los dos ajustes descartados")
+    ok(plan2["transiciones"] == {"usar": True, "estilo": "impacto"} and plan2["sonidos"]["nivel"] == "marcado" and plan2["logo"] == {"usar": True, "estilo": "intro"}, "transiciones, sonidos y logo se aceptan cuando hay cortes y logo")
+    ok([r["capacidad"] for r in plan2["requisitos"]] == ["calculadora", "otra"] and plan2["requisitos"][1]["nota"] == "Iris no puede hacerlo", "requisitos: sin repetidos ni vacíos, y lo que no existe pasa a «otra»")
+    plan3, avisos3 = planes.sanear(bruto, {**ctx2, "cortes": [], "tiene_logo": False, "palabras": _palabras(TRANSCRIPCION)})
+    ok(not plan3["calculadora"]["usar"] and not plan3["transiciones"]["usar"] and not plan3["logo"]["usar"], "sin cifras de dinero, sin cortes y sin logo, la IA no consigue encenderlos")
+    ok(any("no se dicen cifras" in a for a in avisos3) and any("no tiene cortes" in a for a in avisos3), "y se explica por qué")
+    ok(planes.sanear({**bruto, "formato": "inventado"}, ctx2)[0]["formato"] is None, "un formato que no existe se descarta")
+    esquema = json.dumps(planes.ESQUEMA)
+    ok(all(c in esquema for c in ("calculadora", "transiciones", "sonidos", "logo", "requisitos", "formato")) and planes.ESQUEMA["required"][0] == "concepto", "el esquema de la IA incluye todo lo nuevo")
+    texto_ia = ia.texto_de_contexto({**ctx2, "config": interprete.efectivo("Calculadora, transiciones, sin logo", {"_v": 2})})
+    ok("Fijado por la persona" in texto_ia and "calculadora de dinero: sí" in texto_ia and "logo animado: no" in texto_ia and "[1.3] 8.500.000" in texto_ia and "4.0" in texto_ia,
+       "a la IA se le cuentan los cortes reales, las cifras dichas y lo que la persona fijó")
+    ok("calculadora" in ia.SISTEMA.lower() and "requisitos" in ia.SISTEMA, "las instrucciones del director conocen todo lo que Iris sabe construir")
+
+    from . import cumplimiento
+    cfg = interprete.resolver(interprete.efectivo("Contador de dinero con transiciones, efectos de sonido y logo animado", {"_v": 2}), plan2, True, True)
+    guion_ok2, _ = interprete.construir_guion("x", cfg, {"duracion": 14.0, "ancho": 576, "alto": 1024, "voz": {"palabras": dinero}}, None, {}, "m/x.mp4", plan=plan2,
+                                              cortes=[{"t": 4.0, "tipo": "escena"}], logo="m/logo.png")
+    filas = cumplimiento.evaluar(cfg, plan2, guion_ok2, efectos={"cantidad": 9, "nivel": "marcado"}, musica=None, tiene_logo=True, pausas_quitadas=None, hay_cortes=True)
+    estados = {f["capacidad"]: f["estado"] for f in filas}
+    ok(estados.get("calculadora") == "hecho" and estados.get("transiciones") == "hecho" and estados.get("sonidos") == "hecho" and estados.get("logo") == "hecho", f"lo pedido y hecho se informa como «hecho» ({estados})")
+    ok(estados.get("otra") == "no" and next(f for f in filas if f["capacidad"] == "otra")["pedido"] == "Que huela a café", "lo que Iris no puede hacer se informa como «no» con el pedido tal cual")
+    ok("3 paso(s)" in next(f for f in filas if f["capacidad"] == "calculadora")["detalle"], "y la calculadora dice cuántos pasos puso")
+    plan_sin_ajuste = {**plan2, "calculadora": {"usar": True, "ajustes": []}}
+    guion_calc2, _ = interprete.construir_guion("x", cfg, {"duracion": 14.0, "ancho": 576, "alto": 1024, "voz": {"palabras": dinero}}, None, {}, "m/x.mp4", plan=plan_sin_ajuste, logo="m/logo.png")
+    ok("calculó Iris" in next(f for f in cumplimiento.evaluar(cfg, plan_sin_ajuste, guion_calc2, efectos=None, musica=None, tiene_logo=True, pausas_quitadas=None, hay_cortes=False)
+                              if f["capacidad"] == "calculadora")["detalle"], "y avisa de los resultados que calculó Iris")
+    cfg_sin = interprete.resolver(interprete.efectivo("Contador de dinero con transiciones, efectos de sonido y logo animado", {"_v": 2}), planes.plan_base(_contexto()), False, False)
+    guion_sin, _ = interprete.construir_guion("x", cfg_sin, _analisis_sin_dinero(), None, {}, "m/x.mp4", cortes=[])
+    filas = {f["capacidad"]: f for f in cumplimiento.evaluar(cfg_sin, planes.plan_base(_contexto()), guion_sin, efectos=None, musica=None, tiene_logo=False, pausas_quitadas=None, hay_cortes=False)}
+    ok(all(filas[k]["estado"] == "no" for k in ("calculadora", "transiciones", "sonidos", "logo")), "lo que no se pudo hacer se informa como «no»")
+    ok("cifras de dinero" in filas["calculadora"]["detalle"] and "cortes" in filas["transiciones"]["detalle"] and "logo" in filas["logo"]["detalle"].lower(), "con el motivo de cada uno")
+    cfg_off = interprete.resolver(interprete.efectivo("transiciones", {"_v": 2, "transiciones": False}), planes.plan_base(_contexto()), False, False)
+    fila_off = next(f for f in cumplimiento.evaluar(cfg_off, planes.plan_base(_contexto()), guion_sin, efectos=None, musica=None, tiene_logo=False, pausas_quitadas=None, hay_cortes=True)
+                    if f["capacidad"] == "transiciones")
+    ok(fila_off["estado"] == "omitido" and "apagaste" in fila_off["detalle"], "si la persona apagó el interruptor, se informa como «omitido» (no como un fallo)")
+    cfg_claves = interprete.resolver(interprete.efectivo("Resalta las palabras aceite, inventada", {"_v": 2}), planes.plan_base(_contexto()), False, False)
+    guion_claves, _ = interprete.construir_guion("x", cfg_claves, {"duracion": 14.0, "ancho": 576, "alto": 1024, "voz": {"palabras": _palabras(TRANSCRIPCION)}}, None, {}, "m/x.mp4")
+    fila_claves = next(f for f in cumplimiento.evaluar(cfg_claves, planes.plan_base(_contexto()), guion_claves, efectos=None, musica=None, tiene_logo=False, pausas_quitadas=None, hay_cortes=False)
+                       if f["capacidad"] == "palabras_clave")
+    ok(fila_claves["estado"] == "parcial" and "inventada" in fila_claves["detalle"], "palabras en grande: «aceite» se pone, «inventada» no se dice en el video y se informa")
+
     print("Rúbrica: ¿el guion que sale del plan hace lo que se espera?")
     pulso = {"pulsos": [round(0.5 * k, 2) for k in range(1, 30)], "fuertes": [round(2.0 * k, 2) for k in range(1, 8)], "confianza": 0.8}
     cfg = contexto["config"]
@@ -173,6 +251,12 @@ def correr() -> list[str]:
             falso = _Falso(_respuesta(json.dumps(_plan_de_la_ia())))
             ia._fabrica = lambda: falso
             ok(ia.estado_publico()["disponible"], "con un cliente disponible, la IA aparece disponible")
+            sin_permiso = ia.generar_plan(contexto)
+            ok(not ia.estado_publico()["activa"] and sin_permiso["plan"] is None and "confirmar" in sin_permiso["motivo"] and not falso.llamadas,
+               "sin la confirmación de la persona, la IA no recibe nada (no se hace ni una llamada) y se explica por qué")
+            ia.guardar_ajustes({"consentimiento": True})
+            ok(ia.estado_publico()["activa"] and ia.estado_publico()["consentida_en"], "al confirmar el envío de datos, la IA se activa y queda la fecha")
+            ok(ia.estado_publico()["costo_estimado_usd"] == round((3500 * 4 + 4500 * 20) / 1e6, 4), f"el costo estimado por video se muestra antes de crearlo ({ia.estado_publico()['costo_estimado_usd']} USD)")
             r = ia.generar_plan(contexto)
             ok(r["origen"] == "ia" and r["plan"]["gancho"]["texto"] and r["costo_usd"] == round((3000 * 4 + 4000 * 20) / 1e6, 4), f"un plan correcto se usa y se calcula el costo estimado ({r['costo_usd']} USD)")
             peticion = falso.llamadas[0]
@@ -276,6 +360,35 @@ def correr() -> list[str]:
         mudo = base / "mudo.mp4"
         _video(mudo, duracion=8.0)
         ok({p["id"]: p["nivel"] for p in calidad.revisar(mudo, guion_ok, ctx_ok, plan_base, None, False)["pruebas"]}["volumen"] == "aviso", "sin audio: aviso")
+        eventos_ok = [{"t": 1.0, "dur": 1.0, "op": "fijar", "valor": 8_500_000, "de": 0, "a": 8_500_000, "derivado": False},
+                      {"t": 3.0, "dur": 1.0, "op": "restar", "valor": 1_000_000, "de": 8_500_000, "a": 7_500_000, "derivado": True},
+                      {"t": 5.0, "dur": 1.0, "op": "total", "valor": 7_500_000, "de": 7_500_000, "a": 7_500_000, "calculado": 7_500_000, "derivado": False}]
+        calc = lambda eventos: {**guion_ok, "capas": [{"tipo": "calculadora", "ini": 0.6, "fin": 7.0, "y": 42.5, "eventos": eventos}]}  # noqa: E731
+        q = {p["id"]: p for p in calidad.revisar(bueno, calc(eventos_ok), ctx_ok, plan_base, None, False)["pruebas"]}
+        ok(q["calculadora"]["nivel"] == "aviso" and "calculó Iris" in q["calculadora"]["texto"], "calculadora con resultados calculados por Iris: aviso para revisarlos")
+        eventos_mal = [*eventos_ok[:2], {**eventos_ok[2], "a": 9_000_000, "valor": 9_000_000, "calculado": 7_500_000}]
+        q = {p["id"]: p for p in calidad.revisar(bueno, calc(eventos_mal), ctx_ok, plan_base, None, False)["pruebas"]}
+        ok(q["calculadora"]["nivel"] == "aviso" and "$9.000.000" in q["calculadora"]["texto"] and "$7.500.000" in q["calculadora"]["texto"], "si el total que dices no coincide con la cuenta, lo avisa con las dos cifras")
+        solo_dichas = [eventos_ok[0], {**eventos_ok[2], "t": 3.0}]
+        ok({p["id"]: p["nivel"] for p in calidad.revisar(bueno, calc(solo_dichas), ctx_ok, plan_base, None, False)["pruebas"]}["calculadora"] == "ok", "calculadora con todo lo que se dice: sin aviso")
+        ok(calidad.hay_menores([], "cositas-chulas-kids", "") and calidad.hay_menores([[0, 1, "mi"], [1, 2, "niño"]], "masa-motos", "") and not calidad.hay_menores([[0, 1, "menor"], [1, 2, "precio"]], "masa-motos", "")
+           and calidad.hay_menores([], "tu-licencia", "Público: niños de 6 a 10 años"), "menores: marca infantil, palabras de niños en el video o ficha; «menor precio» no cuenta")
+        q = {p["id"]: p["nivel"] for p in calidad.revisar(bueno, guion_ok, ctx_ok, plan_base, None, False, extra={"menores": True, "permiso_menores": False})["pruebas"]}
+        ok(q["menores"] == "aviso", "con menores y sin la casilla de autorización: aviso, nunca «listo»")
+        q = {p["id"]: p["nivel"] for p in calidad.revisar(bueno, guion_ok, ctx_ok, plan_base, None, False, extra={"menores": True, "permiso_menores": True})["pruebas"]}
+        ok(q["menores"] == "ok", "con la autorización de los padres confirmada: en orden")
+        ok(calidad.afirmaciones_a_respaldar(_palabras("Es garantizado, el mejor del mundo y sin riesgo. Cura todo al instante. Gratis para siempre y 100 % seguro.")) == ["garantizado", "el mejor", "sin riesgo", "cura / milagro", "gratis", "para siempre", "instantáneo", "100 %"]
+           and calidad.afirmaciones_a_respaldar(_palabras("Revisa el aceite cada cinco mil kilómetros y cambia el filtro.")) == [], "afirmaciones que piden respaldo: se detectan sin falsos avisos en un video normal")
+        q = {p["id"]: p for p in calidad.revisar(bueno, guion_ok, {**ctx_ok, "palabras": _palabras("Es garantizado y gratis.")}, plan_base, None, False)["pruebas"]}
+        ok(q["afirmaciones"]["nivel"] == "aviso" and "«garantizado»" in q["afirmaciones"]["texto"], "afirmaciones sin respaldo: aviso, no bloqueo")
+        guion_resena = {**guion_ok, "capas": [{"tipo": "tarjeta", "variante": "comentario", "ini": 1, "fin": 3, "y": 50, "nombre": "Cliente", "texto": "Me encantó", "meGusta": "12"}]}
+        ok({p["id"]: p["nivel"] for p in calidad.revisar(bueno, guion_resena, ctx_ok, plan_base, None, False)["pruebas"]}["resenas"] == "aviso", "una tarjeta con aspecto de comentario de cliente: aviso sobre reseñas reales")
+        guion_prop, _ = interprete.construir_guion("x", interprete.resolver(interprete.efectivo("", {"_v": 2}), planes.plan_base(contexto), False, False), _analisis_sin_dinero(), None, {}, "m/x.mp4",
+                                                   plan={**plan_base, "momentos": [{"t": 3.8, "tipo": "tarjeta", "texto": "Cambia el filtro"}], "origen": "ia"}, marca_nombre="Moto Taller")
+        tarjetas_propias = [c for c in guion_prop["capas"] if c["tipo"] == "tarjeta"]
+        ok(all(c["variante"] == "notificacion" and c["nombre"] == "Moto Taller" and not c.get("meGusta") for c in tarjetas_propias), "las tarjetas que Iris crea llevan el nombre de la marca y frases del video: nunca un cliente inventado")
+        q = {p["id"]: p["nivel"] for p in calidad.revisar(bueno, guion_ok, ctx_ok, plan_base, None, False, extra={"efectos": {"cantidad": 4, "nivel": "sutil"}})["pruebas"]}
+        ok(q["sonidos"] == "ok", "con efectos de sonido: lo dice, sin juzgar el gusto")
         guion_mal = {**guion_ok, "capas": [{"tipo": "contador", "ini": 1, "fin": 3, "y": 20, "hasta": 777}, {"tipo": "tarjeta", "ini": 3, "fin": 5, "y": 95, "texto": "Garantizado"}]}
         q = {p["id"]: p["nivel"] for p in calidad.revisar(bueno, guion_mal, {**ctx_ok, "perfil": {"nunca": "garantizado"}}, plan_base, None, False)["pruebas"]}
         ok(q["cifras"] == "error" and q["zona_segura"] == "aviso" and q["prohibidas"] == "error", "cifra inventada, texto fuera de zona segura y palabra prohibida: se marcan")
@@ -283,10 +396,4 @@ def correr() -> list[str]:
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "herramientas"))
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    with tempfile.TemporaryDirectory(prefix="iris-datos-prueba-") as carpeta:
-        os.environ["IRIS_DATOS"] = carpeta
-        from servidor.pruebas_direccion import correr as _correr
-        malos = _correr()
-    sys.exit(1 if malos else 0)
+    sys.exit(1 if correr() else 0)

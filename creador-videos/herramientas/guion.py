@@ -9,7 +9,11 @@ from comun import EMPRESAS, TIPOS, correr, seguro
 
 ESCENAS = {"gancho", "contenido", "cta", "pantalla"}
 CAPAS = {"contador": ("desde", "hasta"), "insignia": ("numero",), "tarjeta": ("variante",), "mira": (),
-         "texto-curvo": ("texto",), "palabra": ("texto",), "titulo": ("texto",)}
+         "texto-curvo": ("texto",), "palabra": ("texto",), "titulo": ("texto",), "calculadora": ("eventos",), "transicion": ("estilo",),
+         "logo": ("archivo", "estilo")}
+OPERACIONES = {"fijar", "sumar", "restar", "restar_pct", "total", "mostrar"}
+TRANSICIONES = {"destello", "barrido", "impacto"}
+ESTILOS_LOGO = {"cierre", "intro", "marca"}
 LOOKS = {"natural", "calido", "frio", "cine", "vibrante"}
 VARIANTES = {"comentario", "notificacion", "estadistica", "foto"}
 DISENOS = {"pleno", "antes-despues"}
@@ -25,6 +29,7 @@ def recursos(props: dict) -> list[str]:
     if props.get("base"):
         rutas.append(props["base"]["clip"])
     rutas += [c["imagen"] for c in props.get("capas", []) if c.get("imagen")]
+    rutas += [c["archivo"] for c in props.get("capas", []) if c.get("tipo") == "logo" and c.get("archivo")]
     rutas += [props[k] for k in ("voz",) if props.get(k)]
     if props.get("musica"):
         rutas.append(props["musica"]["archivo"])
@@ -97,6 +102,22 @@ def revisar(props: dict) -> list[str]:
         errores += [f"{donde}: falta '{k}'" for k in CAPAS[c["tipo"]] if c.get(k) is None]
         if c["tipo"] == "tarjeta" and c.get("variante") not in VARIANTES:
             errores.append(f"{donde}: 'variante' debe ser una de: {', '.join(sorted(VARIANTES))}")
+        if c["tipo"] == "transicion" and c.get("estilo") not in TRANSICIONES:
+            errores.append(f"{donde}: 'estilo' debe ser uno de: {', '.join(sorted(TRANSICIONES))}")
+        if c["tipo"] == "logo" and c.get("estilo") not in ESTILOS_LOGO:
+            errores.append(f"{donde}: 'estilo' debe ser uno de: {', '.join(sorted(ESTILOS_LOGO))}")
+        if c["tipo"] == "calculadora":
+            eventos = c.get("eventos")
+            if not (isinstance(eventos, list) and eventos):
+                errores.append(f"{donde}: 'eventos' necesita al menos un paso")
+            else:
+                for k, e in enumerate(eventos, 1):
+                    if not (isinstance(e, dict) and _numero(e.get("t")) and _numero(e.get("dur")) and e["dur"] > 0 and _numero(e.get("valor")) and e.get("op") in OPERACIONES):
+                        errores.append(f"{donde}: el paso {k} necesita t, dur > 0, valor y una op de: {', '.join(sorted(OPERACIONES))}")
+                        break
+                    if e["op"] != "mostrar" and not (_numero(e.get("de")) and _numero(e.get("a"))):
+                        errores.append(f"{donde}: el paso {k} ({e['op']}) necesita 'de' y 'a'")
+                        break
 
     for i, z in enumerate(props.get("zooms", []), 1):
         if not (_numero(z.get("ini")) and _numero(z.get("fin")) and z["ini"] < z["fin"] and _numero(z.get("escala")) and z["escala"] > 0):

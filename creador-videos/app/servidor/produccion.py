@@ -20,16 +20,19 @@ import descargar
 import guion as revisor
 import mezcla
 import musica as analisis_musical
+import numeros
 import render
+import sonidos
 
-from . import calidad, datos, estilo, interprete, pausas
+from . import calidad, cumplimiento, datos, escenas as unidor, estilo, interprete, pausas
 from .direccion import ia, perfil as perfiles, plan as planes
 
 NEUTRA = "maquetas-estilo"  # carpeta de la biblioteca compartida: aquí se guarda lo que no pertenece a una marca
 FPS = 30
-PESOS = {"preparar": 4, "pausas": 8, "voz": 28, "direccion": 6, "guion": 2, "render": 46, "final": 8, "revision": 4}
+PESOS = {"preparar": 3, "unir": 8, "pausas": 8, "voz": 28, "direccion": 6, "guion": 2, "render": 46, "final": 8, "revision": 4}
 ETAPAS = {
     "preparar": "Preparando tu video",
+    "unir": "Uniendo tus escenas",
     "pausas": "Quitando las pausas largas",
     "voz": "Escuchando y transcribiendo la voz",
     "direccion": "Dirigiendo el video",
@@ -66,6 +69,17 @@ def carpeta_de_referencia(id_: str) -> Path:
 
 def carpeta_de_cancion(id_: str) -> Path:
     return datos.DATOS / "musica" / id_
+
+
+EXTENSIONES_LOGO = {".png", ".webp", ".jpg", ".jpeg"}
+
+
+def logo_de(marca: str | None) -> Path | None:
+    """Logo que la persona subió para esta marca (vive en la carpeta de datos, no en el repositorio)."""
+    if not marca:
+        return None
+    carpeta = datos.DATOS / "marcas" / marca
+    return next((p for p in sorted(carpeta.glob("logo.*")) if p.suffix.lower() in EXTENSIONES_LOGO), None) if carpeta.is_dir() else None
 
 
 def carpeta_de_marca(marca: str | None) -> Path:
@@ -296,31 +310,58 @@ def _elegir_cancion(energia: str | None, ritmo: str | None, duracion: float) -> 
             "fuertes": [round(x - inicio, 3) for x in a["tiempos_fuertes"] if inicio <= x <= limite]}
 
 
+def escenas_de(t: dict) -> list[dict]:
+    """Las escenas del video en orden. Un trabajo guardado por una versión anterior tiene un solo archivo: se trata como una escena."""
+    lista = list(t.get("escenas") or [])
+    if not lista and t.get("fuente_archivo"):
+        lista = [{"id": "unica", "archivo": t["fuente_archivo"], "nombre": t["fuente_nombre"], "duracion": t["fuente_duracion"] or 0.0, "vertical": bool(t["fuente_vertical"]), "audio": True}]
+    return lista
+
+
+def pasos_de(config: dict, n_escenas: int) -> list[str]:
+    return ["preparar"] + (["unir"] if n_escenas > 1 else []) + (["pausas"] if config["quitar_pausas"] else []) + ["voz", "direccion", "guion", "render", "final", "revision"]
+
+
 def _construir(id_: str) -> None:
     t = datos.uno("SELECT * FROM trabajos WHERE id = ?", (id_,))
-    if t is None or not t["fuente_archivo"]:
+    escenas = escenas_de(t) if t else []
+    if t is None or not escenas:
         raise RuntimeError("Falta subir el video de este trabajo.")
     base = carpeta_de_trabajo(id_)
     config = interprete.efectivo(t["prompt"] or "", t["opciones"] or {})
-    pasos = ["preparar"] + (["pausas"] if config["quitar_pausas"] else []) + ["voz", "direccion", "guion", "render", "final", "revision"]
+    pasos = pasos_de(config, len(escenas))
     avance = Avance(id_, pasos)
     inicio = datos.ahora()
     datos.actualizar("trabajos", id_, {"estado": "trabajando", "error": None, "resultado": None, "fotogramas_listos": 0, "fotogramas_total": 0, "eta": None,
-                                       "calidad": None, "plan": None, "ia_info": None, "musica_id": None})
+                                       "calidad": None, "plan": None, "ia_info": None, "musica_id": None, "cumplimiento": None})
 
     avance.poner("preparar", 0.1)
-    fuente = datos.DATOS / t["fuente_archivo"]
+    fuente = datos.DATOS / escenas[0]["archivo"]
     carpeta = carpeta_de_marca(t["marca"])
-    duracion_fuente = t["fuente_duracion"] or 0.0
     video = fuente
+    cortes: list[dict] = []  # instantes donde hay un corte de verdad: ahí caben las transiciones
+    pausas_quitadas: float | None = None
     shutil.rmtree(base / "fotos", ignore_errors=True)
     shutil.rmtree(base / "render", ignore_errors=True)
+
+    if len(escenas) > 1:
+        avance.poner("unir", 0.05, f"Uniendo {len(escenas)} escenas")
+        vertical = bool(escenas[0].get("vertical", True))
+        ancho, alto = (1080, 1920) if vertical else (1920, 1080)
+        if config["borrador"]:
+            ancho, alto = ancho // 2, alto // 2
+        union = unidor.unir([{"archivo": datos.DATOS / e["archivo"], "duracion": e["duracion"], "audio": e.get("audio", True)} for e in escenas], base / "union.mp4", ancho, alto)
+        fuente = video = union["archivo"]
+        cortes = [{"t": x, "tipo": "escena"} for x in union["limites"]]
+        avance.poner("unir", 1.0, f"{len(escenas)} escenas unidas ({union['duracion']:.0f} s)")
 
     if config["quitar_pausas"]:
         avance.poner("pausas", 0.1, "Buscando silencios")
         sonda = analizar._sondear(fuente)
         corte = pausas.quitar(fuente, base / "sin-pausas.mp4", sonda["duracion"], sonda["tiene_audio"])
         video = corte["archivo"]
+        pausas_quitadas = corte["quitado"]
+        cortes = [{"t": round(pausas.remapear(c["t"], corte["tramos"]), 3), "tipo": c["tipo"]} for c in cortes] + [{"t": x, "tipo": "pausa"} for x in corte["instantes"]]
         avance.poner("pausas", 1.0, f"Quité {corte['quitado']:.1f} s de pausas" if corte["quitado"] else "No había pausas largas que quitar")
 
     modelo = modelo_de_voz()
@@ -340,7 +381,8 @@ def _construir(id_: str) -> None:
     referencia = _perfil_de_referencias(t["referencias"] or [])
     palabras = [list(p) for p in (analisis.get("voz") or {}).get("palabras", [])]
     contexto = {"brief": t["prompt"] or "", "duracion": duracion, "palabras": palabras, "ficha": ficha, "marca_nombre": marca_nombre,
-                "perfil": perfil_creativo, "referencia": referencia, "config": config, "vertical": bool(analisis.get("vertical", True)), "musica": None}
+                "perfil": perfil_creativo, "referencia": referencia, "config": config, "vertical": bool(analisis.get("vertical", True)), "musica": None,
+                "cortes": cortes, "tiene_logo": logo_de(t["marca"]) is not None, "escenas": len(escenas)}
     base_plan = planes.plan_base(contexto)
     candidata = _elegir_cancion(base_plan["musica"]["energia"], base_plan["musica"]["ritmo"], duracion) if config["musica"] and base_plan["musica"]["usar"] else None
     contexto["musica"] = candidata
@@ -369,6 +411,8 @@ def _construir(id_: str) -> None:
     avance.poner("direccion", 1.0, " · ".join(notas_direccion)[:600] or None)
 
     avance.poner("guion", 0.2, "Aplicando lo que aprendí de tus referencias" if t["referencias"] else None)
+    logo_origen = logo_de(t["marca"])
+    config = interprete.resolver(config, plan, logo_origen is not None, bool(numeros.operaciones(numeros.encontrar(palabras))))
     enlace = carpeta / "videos" / "propios" / f"iris-{id_}.mp4"
     enlace.parent.mkdir(parents=True, exist_ok=True)
     enlace.unlink(missing_ok=True)
@@ -376,23 +420,37 @@ def _construir(id_: str) -> None:
         os.link(video, enlace)
     except OSError:
         shutil.copy2(video, enlace)
+    enlace_logo = None
+    if config["logo"] and logo_origen is not None:
+        enlace_logo = carpeta / "videos" / "propios" / f"iris-{id_}-logo{logo_origen.suffix.lower()}"
+        enlace_logo.unlink(missing_ok=True)
+        try:
+            os.link(logo_origen, enlace_logo)
+        except OSError:
+            shutil.copy2(logo_origen, enlace_logo)
     try:
         colores = _colores_de_marca(carpeta)
         pulsos = {"pulsos": elegida["pulsos"], "fuertes": elegida["fuertes"], "confianza": elegida["confianza"]} if elegida else None
         guion, notas = interprete.construir_guion(f"iris-{id_}", config, analisis, referencia, colores, f"{carpeta.name}/videos/propios/{enlace.name}",
-                                                  plan=plan, musica=pulsos, marca_nombre=marca_nombre)
+                                                  plan=plan, musica=pulsos, marca_nombre=marca_nombre, cortes=cortes,
+                                                  logo=f"{carpeta.name}/videos/propios/{enlace_logo.name}" if enlace_logo else None)
         notas = notas_direccion + notas
         (base / "guion.json").write_text(json.dumps(guion, ensure_ascii=False, indent=1), encoding="utf-8")
         datos.actualizar("trabajos", id_, {"notas": notas})
         avance.poner("guion", 1.0, " · ".join(notas)[:600])
         _renderizar(id_, base, carpeta, guion, duracion, avance)
-        _terminar(id_, base, video, analisis, duracion, carpeta, t, avance, inicio, guion=guion, contexto=contexto, plan=plan, musica=elegida, config=config)
+        _terminar(id_, base, video, analisis, duracion, carpeta, t, avance, inicio, guion=guion, contexto=contexto, plan=plan, musica=elegida, config=config,
+                   extra={"pausas_quitadas": pausas_quitadas, "hay_cortes": bool(cortes), "tiene_logo": logo_origen is not None, "marca_nombre": marca_nombre, "ficha": ficha})
     finally:
         enlace.unlink(missing_ok=True)
+        if enlace_logo is not None:
+            enlace_logo.unlink(missing_ok=True)
         shutil.rmtree(base / "fotos", ignore_errors=True)
         shutil.rmtree(base / "render", ignore_errors=True)
         (base / "sin-pausas.mp4").unlink(missing_ok=True)
+        (base / "union.mp4").unlink(missing_ok=True)
         (base / "audio-final.m4a").unlink(missing_ok=True)
+        (base / "efectos.wav").unlink(missing_ok=True)
 
 
 def _colores_de_marca(carpeta: Path) -> dict:
@@ -450,7 +508,8 @@ def _preparar(carpeta: Path, base: Path):
 
 
 def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float, carpeta: Path, t: dict, avance: Avance, inicio: float,
-              guion: dict, contexto: dict, plan: dict, musica: dict | None, config: dict) -> None:
+              guion: dict, contexto: dict, plan: dict, musica: dict | None, config: dict, extra: dict | None = None) -> None:
+    extra = extra or {}
     avance.poner("final", 0.1, "Limpiando la voz y nivelando el volumen")
     fotos = base / "fotos"
     archivos = sorted(f for f in os.listdir(fotos) if f.endswith(".jpeg"))
@@ -460,12 +519,22 @@ def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float
     tiene_voz = analisis.get("audio") is not None
     audio_final = base / "audio-final.m4a"
     nota_audio = None
+    efectos = None
+    if config.get("sonidos") and tiene_voz:
+        nivel = (plan.get("sonidos") or {}).get("nivel") or "sutil"
+        eventos = sonidos.eventos_de_guion(guion, nivel if nivel in mezcla.NIVELES_EFECTOS else "sutil")
+        if eventos:
+            sonidos.escribir(sonidos.pista(eventos, duracion), base / "efectos.wav")
+            efectos = {"archivo": base / "efectos.wav", "nivel": nivel if nivel in mezcla.NIVELES_EFECTOS else "sutil", "cantidad": len(eventos)}
     try:
         cancion = {"archivo": musica["archivo"], "inicio": musica["inicio"], "repetir": musica["repetir"], "lufs": musica["lufs"]} if musica else None
-        informe = mezcla.masterizar(video if tiene_voz else None, audio_final, duracion, cancion)
+        informe = mezcla.masterizar(video if tiene_voz else None, audio_final, duracion, cancion, efectos=efectos)
     except RuntimeError as error:  # si la mezcla falla, el video sale con el audio original en vez de no salir
         informe, nota_audio = None, f"No pude mezclar y nivelar el audio ({error}); dejé el sonido original."
         audio_final.unlink(missing_ok=True)
+    if informe is not None and efectos is not None:
+        notas_previas = (datos.uno("SELECT notas FROM trabajos WHERE id = ?", (id_,)) or {}).get("notas") or []
+        datos.actualizar("trabajos", id_, {"notas": notas_previas + [f"{efectos['cantidad']} efectos de sonido ({efectos['nivel']}) bajo tu voz"]})
     if informe is not None and audio_final.exists():
         entrada += ["-i", str(audio_final)]
         mapa = ["-map", "0:v", "-map", "1:a", "-c:a", "copy"]
@@ -483,7 +552,9 @@ def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float
 
     avance.poner("revision", 0.2, "Midiendo volumen, picos, negros y zonas seguras")
     try:
-        informe_calidad = calidad.revisar(salida, guion, contexto, plan, musica, bool(config.get("borrador")))
+        menores = calidad.hay_menores(contexto.get("palabras", []), t["marca"] or "", extra.get("ficha", ""))
+        informe_calidad = calidad.revisar(salida, guion, contexto, plan, musica, bool(config.get("borrador")),
+                                          extra={"efectos": efectos, "menores": menores, "permiso_menores": bool((t["opciones"] or {}).get("permiso_menores"))})
     except Exception as error:  # noqa: BLE001 - revisar no debe impedir entregar el video
         informe_calidad = {"veredicto": "revisar", "resumen": "No pude completar la revisión automática.", "pruebas": [
             {"id": "revision", "nivel": "aviso", "texto": f"No pude completar la revisión automática ({type(error).__name__})."}]}
@@ -498,5 +569,10 @@ def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float
         os.link(salida, copia)
     except OSError:
         shutil.copy2(salida, copia)
+    try:
+        filas = cumplimiento.evaluar(config, plan, guion, efectos=efectos, musica=musica, tiene_logo=bool(extra.get("tiene_logo")),
+                                     pausas_quitadas=extra.get("pausas_quitadas"), hay_cortes=bool(extra.get("hay_cortes")))
+    except Exception:  # noqa: BLE001 - el resumen de lo pedido nunca debe impedir entregar el video
+        filas = []
     datos.actualizar("trabajos", id_, {"estado": "listo", "etapa": None, "progreso": 1.0, "mensaje": f"Listo en {round(datos.ahora() - inicio)} s", "eta": None,
-                                      "resultado": "resultado.mp4", "calidad": informe_calidad, "actualizado": datos.ahora()})
+                                      "resultado": "resultado.mp4", "calidad": informe_calidad, "cumplimiento": filas, "actualizado": datos.ahora()})

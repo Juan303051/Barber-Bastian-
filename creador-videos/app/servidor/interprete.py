@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import re
 
+import numeros
 from musica import pulso_mas_cercano
 
+from . import formatos
 from .logica_texto import normalizar
 
 
@@ -22,13 +24,24 @@ COLORES = {"rojo": "#FF3B30", "naranja": "#FF9500", "amarillo": "#FFCC00", "verd
            "azul": "#0A84FF", "morado": "#AF52DE", "violeta": "#AF52DE", "rosa": "#FF2D55", "rosado": "#FF2D55", "blanco": "#FFFFFF"}
 # Cosas que la persona puede pedir y que Iris todavía no hace: se le dice claro en vez de ignorarlas.
 PENDIENTES = [
-    (r"\btransicion|\btransiciones\b", "Transiciones con efecto: todavía no están disponibles."),
     (r"detras de (la|el)\b|\btexto detras\b", "Texto detrás de la persona: todavía no lo hago de forma automática."),
-    (r"efectos? de sonido|\bwhoosh\b", "Efectos de sonido: todavía no los añado."),
     (r"\brecort(a|ar|e)\b.*\bsegundos\b|\bduracion de \d+", "Recortar a una duración exacta: todavía no lo hago."),
-    (r"\blogo\b", "Logo animado: usa el logo de la marca si lo tiene configurado; no genero uno nuevo."),
 ]
-FORMATOS = {"subtitulos": "Subtítulos dinámicos", "antes-despues": "Antes y después"}
+FORMATOS = {k: v["nombre"] for k, v in formatos.FORMATOS.items()}
+
+# Lo que el texto puede pedir (o negar) de forma explícita. Cada clave coincide con un interruptor de la tarjeta.
+PEDIDOS = {
+    "calculadora": r"calculadora|contador (?:digital )?de (?:dinero|precios?|valores?)|cada vez que se anuncie una cifra|(?:muestra|anima|actualiza)\w*\s+(?:el\s+|la\s+)?(?:valor|dinero|precio|monto|cifra)|sumar y restar|sume y reste",
+    "transiciones": r"transicion(?:es)?|cortes? con efecto",
+    "sonidos": r"efectos? de sonido|efectos? sonoros|\bsfx\b|\bwhoosh\b|sonidos? de (?:caja|transicion)",
+    "logo": r"\blogo(?:tipo)?\b",
+}
+NEGADORES = r"(?:sin|ni|no\s+(?:quiero|pongas|agregues|uses|incluyas|anadas|hagas)|quita(?:r)?|elimina(?:r)?|evita(?:r)?|nada\s+de)"
+
+# Interruptores de la tarjeta: nombre → valor por defecto (None = «Iris decide», con la IA o con reglas).
+INTERRUPTORES = {"quitar_pausas": False, "acercamientos": True, "insignias": True, "contadores": True, "cierre": True, "color_referencias": False,
+                 "musica": True, "ia": True, "calculadora": None, "transiciones": None, "sonidos": None, "logo": None}
+VERSION_OPCIONES = 2
 
 
 def _sin_comillas(texto: str) -> str:
@@ -45,15 +58,20 @@ def _lista(texto: str) -> list[str]:
     return vistas[:12]
 
 
+def _niega(plano: str, patron: str) -> bool:
+    return bool(re.search(rf"\b{NEGADORES}\s+(?:las\s+|los\s+|el\s+|la\s+|ningun[ao]s?\s+|mas\s+)?(?:{patron})", plano))
+
+
 def leer_prompt(prompt: str) -> dict:
-    """Lo que el texto pide de forma explícita; nada se inventa."""
+    """Lo que el texto pide de forma explícita; nada se inventa.
+    `pide` y `niega` son los interruptores que el texto enciende o apaga; `formato` es el que el texto describe (o None)."""
     texto = prompt.strip()
     plano = normalizar_conservando_espacios(texto)
-    leido: dict = {"claves": [], "cta": None, "posicion": None, "max_palabras": None, "acento": None, "sugerencias": {}, "pendiente": []}
+    leido: dict = {"claves": [], "cta": None, "posicion": None, "max_palabras": None, "acento": None, "pide": set(), "niega": set(), "formato": None, "pendiente": []}
 
-    coincidencia = re.search(r"(?:resalta|destaca|enfatiza|pon en grande|marca en grande)\w*\s*(?:las\s+|los\s+)?(?:palabras?|frases?)?\s*(?:clave)?\s*:?\s*(.+)", texto, re.I)
+    coincidencia = re.search(r"(?:resalta|destaca|enfatiza|pon en grande|marca en grande)\w*\s+(?:las\s+|los\s+)?(?:palabras?|frases?)\s*(?:clave)?\s*:?\s*(.+)", texto, re.I)
     if not coincidencia:
-        coincidencia = re.search(r"palabras?\s+clave\s*:?\s*(.+)", texto, re.I)
+        coincidencia = re.search(r"palabras?\s+clave\s*:\s*(.+)", texto, re.I)
     if coincidencia:
         resto = re.split(r"[.\n]|\s+(?:quita|elimina|y\s+quita|y\s+elimina|con\s+subtitulos|pon|y\s+pon|cierra|y\s+cierra|al\s+final)\b", coincidencia.group(1), maxsplit=1, flags=re.I)[0]
         leido["claves"] = _lista(resto)
@@ -73,14 +91,24 @@ def leer_prompt(prompt: str) -> dict:
         valor = color.group(1)
         leido["acento"] = valor.upper() if valor.startswith("#") else COLORES[valor.lower()]
 
-    if re.search(r"antes\s*(?:y|/|-)\s*despues|before\s*(?:and|/)\s*after", plano):
-        leido["sugerencias"]["formato"] = "antes-despues"
+    for clave, patron in PEDIDOS.items():
+        if _niega(plano, patron):
+            leido["niega"].add(clave)
+        elif re.search(patron, plano):
+            leido["pide"].add(clave)
     if re.search(r"(quita|quitar|elimina|eliminar|corta|cortar|saca|sacar|remueve)\s+(las\s+|los\s+)?(pausas|silencios)|sin\s+(pausas|silencios)", plano):
-        leido["sugerencias"]["quitar_pausas"] = True
+        leido["pide"].add("quitar_pausas")
     if re.search(r"\bsin\s+(la\s+)?(musica|cancion)", plano):
-        leido["sugerencias"]["musica"] = False
+        leido["niega"].add("musica")
     elif re.search(r"\b(con|pon|poner|agrega|agregar|anade|anadir)\s+(la\s+|una\s+)?(musica|cancion)|musica\s+de\s+fondo", plano):
-        leido["sugerencias"]["musica"] = True
+        leido["pide"].add("musica")
+
+    if re.search(r"antes\s*(?:y|/|-)\s*despues|before\s*(?:and|/)\s*after", plano):
+        leido["formato"] = "antes-despues"
+    elif "calculadora" in leido["pide"]:
+        leido["formato"] = "dinero"
+    elif re.search(r"paso a paso|pasos numerados|tutorial|enumera\w* los pasos", plano):
+        leido["formato"] = "pasos"
     leido["pendiente"] = [aviso for patron, aviso in PENDIENTES if re.search(patron, plano)]
     return leido
 
@@ -92,43 +120,99 @@ def normalizar_conservando_espacios(texto: str) -> str:
     return "".join(c for c in sin if unicodedata.category(c) != "Mn")
 
 
+def _manuales(opciones: dict) -> dict:
+    """Lo que la persona tocó a propósito. Las tarjetas guardadas por una versión anterior guardaban todos los interruptores: ahí solo cuenta lo que se aparta del valor de entonces."""
+    if opciones.get("_v") == VERSION_OPCIONES:
+        return {k: v for k, v in opciones.items() if k in INTERRUPTORES and isinstance(v, bool)}
+    antiguos = {"quitar_pausas": False, "acercamientos": True, "insignias": True, "contadores": True, "cierre": True, "color_referencias": False, "musica": True, "ia": True}
+    return {k: v for k, v in opciones.items() if k in antiguos and isinstance(v, bool) and v != antiguos[k]}
+
+
 def efectivo(prompt: str, opciones: dict) -> dict:
-    """Mezcla lo que dicen los interruptores (mandan) con lo que pide el texto (rellena lo que los interruptores no cubren)."""
+    """Lo que Iris va a hacer: lo que la persona tocó manda; si no, lo que pidió en el texto; si no, lo que trae el formato; si no, el valor por defecto
+    (para calculadora, transiciones, sonidos y logo, `None` significa «lo decide el director»). `origenes` dice de dónde salió cada valor."""
     leido = leer_prompt(prompt)
+    manual = _manuales(opciones)
+    elegido = opciones.get("formato")
+    ignorados = ("auto",) if opciones.get("_v") == VERSION_OPCIONES else ("auto", "subtitulos")  # antes «subtítulos» era el valor que se guardaba sin que nadie lo eligiera
+    formato_manual = elegido if elegido in formatos.FORMATOS and elegido not in ignorados else None
+    formato = formato_manual or leido["formato"] or "subtitulos"
+    preset = formatos.FORMATOS[formato]["preset"]
+    valores: dict = {}
+    origenes: dict = {}
+    for clave, defecto in INTERRUPTORES.items():
+        if clave in manual:
+            valores[clave], origenes[clave] = manual[clave], "manual"
+        elif clave in leido["niega"]:
+            valores[clave], origenes[clave] = False, "texto"
+        elif clave in leido["pide"]:
+            valores[clave], origenes[clave] = True, "texto"
+        elif clave in preset and (formato_manual is not None or leido["formato"] is not None):
+            valores[clave], origenes[clave] = preset[clave], "formato"
+        else:
+            valores[clave], origenes[clave] = defecto, "defecto"
     return {
-        "formato": opciones.get("formato") or "subtitulos",
-        "quitar_pausas": bool(opciones.get("quitar_pausas", False)),
-        "acercamientos": bool(opciones.get("acercamientos", True)),
-        "insignias": bool(opciones.get("insignias", True)),
-        "contadores": bool(opciones.get("contadores", True)),
-        "cierre": bool(opciones.get("cierre", True)),
-        "color_referencias": bool(opciones.get("color_referencias", False)),
+        "formato": formato,
+        "formato_origen": "manual" if formato_manual else "texto" if leido["formato"] else "defecto",
+        **valores,
+        "origenes": origenes,
+        "color_referencias": bool(valores["color_referencias"]),
         "idioma": opciones.get("idioma") or None,
         "borrador": opciones.get("calidad") == "borrador",
-        "musica": bool(opciones.get("musica", True)),
         "acabado": opciones.get("acabado") or "auto",
-        "ia": bool(opciones.get("ia", True)),
         "claves": leido["claves"],
         "cta": leido["cta"],
         "posicion": leido["posicion"],
         "max_palabras": leido["max_palabras"],
         "acento": leido["acento"],
         "pendiente": leido["pendiente"],
-        "sugerencias": leido["sugerencias"],
+        "pide": sorted(leido["pide"]),
+        "niega": sorted(leido["niega"]),
     }
 
 
-def resumen(config: dict) -> list[dict]:
+def resolver(config: dict, plan: dict, tiene_logo: bool, hay_dinero: bool) -> dict:
+    """Completa lo que quedó en «lo decide el director» (None) con lo que decidió el plan. Nada se enciende sin que el plan o la persona lo pidan."""
+    final = dict(config)
+    if final["calculadora"] is None:
+        final["calculadora"] = bool((plan.get("calculadora") or {}).get("usar")) and hay_dinero
+    if final["transiciones"] is None:
+        final["transiciones"] = bool((plan.get("transiciones") or {}).get("usar"))
+    if final["sonidos"] is None:
+        final["sonidos"] = ((plan.get("sonidos") or {}).get("nivel") or "ninguno") != "ninguno"
+    if final["logo"] is None:
+        final["logo"] = bool((plan.get("logo") or {}).get("usar")) and tiene_logo
+    return final
+
+
+def resumen(config: dict, tiene_logo: bool = False) -> list[dict]:
     """Lo que Iris entendió, en frases para mostrar (con un icono por tema)."""
-    filas = [{"icono": "texto", "texto": f"Formato: {FORMATOS.get(config['formato'], config['formato'])}"}]
+    def de(clave: str) -> str:
+        return {"texto": " · lo pediste en tu texto", "manual": "", "formato": " · viene con este formato"}.get(config["origenes"].get(clave, ""), "")
+
+    filas = [{"icono": "texto", "texto": f"Formato: {FORMATOS.get(config['formato'], config['formato'])}" + (" · elegido por Iris según tu texto" if config["formato_origen"] == "texto" else "")}]
+    if config["calculadora"]:
+        filas.append({"icono": "calculadora", "texto": "Calculadora: suma, resta y muestra el total de cada cifra que digas" + de("calculadora")})
+    elif config["calculadora"] is None:
+        filas.append({"icono": "calculadora", "texto": "Calculadora de dinero: la usa el director si dices precios"})
     if config["claves"]:
         filas.append({"icono": "estrella", "texto": "Palabras en grande: " + ", ".join(config["claves"])})
     if config["cta"] and config["cierre"]:
         filas.append({"icono": "mensaje", "texto": f"Cierre pidiendo comentar «{config['cta']}»"})
     elif config["cierre"]:
         filas.append({"icono": "mensaje", "texto": "Cierre con palabra clave si la dices en el video (por ejemplo «comenta EDITOR»)"})
+    if config["transiciones"]:
+        filas.append({"icono": "transicion", "texto": "Transiciones en los cortes entre escenas" + de("transiciones")})
+    elif config["transiciones"] is None:
+        filas.append({"icono": "transicion", "texto": "Transiciones: las decide el director"})
+    if config["sonidos"]:
+        filas.append({"icono": "sonido", "texto": "Efectos de sonido sutiles bajo tu voz" + de("sonidos")})
+    elif config["sonidos"] is None:
+        filas.append({"icono": "sonido", "texto": "Efectos de sonido: los decide el director"})
+    if config["logo"]:
+        filas.append({"icono": "logo", "texto": "Logo animado de la marca" + de("logo") + ("" if tiene_logo else " · falta subir el logo de esta marca")})
     if config["quitar_pausas"]:
-        filas.append({"icono": "tijeras", "texto": "Quitaré las pausas largas"})
+        filas.append({"icono": "tijeras", "texto": "Quitaré las pausas largas" + de("quitar_pausas")})
     if config["posicion"]:
         filas.append({"icono": "texto", "texto": f"Subtítulos {config['posicion']}"})
     if config["acento"]:
@@ -193,21 +277,47 @@ def _valor(texto: str) -> tuple[float, str, str] | None:
 
 
 def _contadores(palabras: list, duracion: float) -> list[dict]:
+    """Un contador que sube hasta cada cifra importante que se dice (máximo tres, separados). Entiende «8.500.000», «300 mil» y «un millón»."""
     capas: list[dict] = []
     ultimo = -99.0
-    for i, (ini, _fin, texto) in enumerate(palabras):
-        if len(capas) >= 3 or ini < 0.8 or ini - ultimo < 4.0 or ini > duracion - 1.0:
+    for c in numeros.encontrar(palabras):
+        valor = c["valor"]
+        if len(capas) >= 3 or c["ini"] < 0.8 or c["ini"] - ultimo < 4.0 or c["ini"] > duracion - 1.0 or isinstance(valor, float):
             continue
-        valor = _valor(texto)
-        if valor is None:
+        if valor < (10 if c["clase"] in ("dinero", "porcentaje") else 100) or valor > 10_000_000_000 or (c["clase"] == "cantidad" and 1900 <= valor <= 2100):
             continue
-        cifra, moneda, sufijo = valor
-        if not moneda and i + 1 < len(palabras) and normalizar(palabras[i + 1][2]) in {"dolares", "pesos", "usd", "cop", "euros", "dollars"}:
-            moneda = "$"
-        capas.append({"tipo": "contador", "ini": round(ini, 2), "fin": round(min(duracion, ini + 2.4), 2), "x": 50, "y": 20,
-                      "desde": 0, "hasta": int(cifra), "prefijo": moneda, "sufijo": sufijo, "tamano": 130})
-        ultimo = ini
+        capas.append({"tipo": "contador", "ini": round(c["ini"], 2), "fin": round(min(duracion, c["ini"] + 2.4), 2), "x": 50, "y": 20, "desde": 0, "hasta": int(valor),
+                      "prefijo": "$" if c["clase"] == "dinero" else "", "sufijo": "%" if c["clase"] == "porcentaje" else "", "tamano": 130})
+        ultimo = c["ini"]
     return capas
+
+
+def _calculadora(palabras: list, duracion: float, tope: float, ajustes: list[dict] | None = None) -> dict | None:
+    """Capa de calculadora con los pasos que salen de las cifras de dinero dichas antes de `tope`; None si no se dijo ninguna."""
+    cifras = [c for c in numeros.encontrar(palabras) if c["ini"] < tope - 0.5]
+    eventos = numeros.operaciones(cifras, ajustes=ajustes)
+    if not eventos:
+        return None
+    moneda = "$"
+    for c in cifras:
+        if "dolares" in c["despues"][:2] or "usd" in c["despues"][:2]:
+            moneda = "US$"
+        elif "euros" in c["despues"][:2] or "euro" in c["despues"][:2]:
+            moneda = "€"
+    ini = max(0.0, eventos[0]["t"] - 0.4)
+    fin = min(tope, eventos[-1]["t"] + eventos[-1]["dur"] + 2.4)
+    return {"tipo": "calculadora", "ini": round(ini, 2), "fin": round(fin, 2), "x": 50, "y": 42, "moneda": moneda, "eventos": eventos}
+
+
+def _transiciones(cortes: list[dict], duracion: float, desde: float = 1.0) -> list[dict]:
+    """Cortes donde cabe una transición: ni al principio ni al final, bien separados. Entre escenas se permiten más seguidos que entre pausas quitadas."""
+    elegidos: list[dict] = []
+    for c in sorted(cortes, key=lambda c: c["t"]):
+        separacion = 2.0 if c["tipo"] == "escena" else 3.5
+        if c["t"] < desde or c["t"] > duracion - 1.0 or (elegidos and c["t"] - elegidos[-1]["t"] < separacion):
+            continue
+        elegidos.append(c)
+    return elegidos[:10]
 
 
 def _cierre(palabras: list, duracion: float, cta_pedido: str | None) -> tuple[str | None, float | None]:
@@ -239,11 +349,13 @@ def _tamano_titulo(texto: str) -> int:
 
 
 def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | None, colores_marca: dict, base_clip: str,
-                    plan: dict | None = None, musica: dict | None = None, marca_nombre: str = "") -> tuple[dict, list[str]]:
+                    plan: dict | None = None, musica: dict | None = None, marca_nombre: str = "", cortes: list[dict] | None = None,
+                    logo: str | None = None) -> tuple[dict, list[str]]:
     """Guion de Remotion y la lista de lo que se aplicó (para contárselo a la persona).
 
     `plan`: lo que decidió el director (con IA o por reglas, ya saneado). `musica`: pulsos de la canción elegida ya medidos desde
     el inicio del video, `{"pulsos": [...], "fuertes": [...], "confianza": 0.7}`; con ellos los acercamientos se apoyan en el pulso.
+    `cortes`: instantes donde hay un corte real, `[{"t": 12.4, "tipo": "escena" | "pausa"}]`, para las transiciones. `logo`: ruta (relativa a empresas/) del logo de la marca.
     """
     duracion = round(float(analisis["duracion"]), 2)
     voz = analisis.get("voz") or {}
@@ -282,6 +394,7 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
         return guion, notas
 
     cierre_clave, cierre_ini = (None, None)
+    fin_de_contenido = duracion  # hasta dónde llegan las piezas: el cierre ocupa el final
     if config["cierre"]:
         cierre_clave, cierre_ini = _cierre(palabras, duracion, config["cta"])
         if cierre_clave is None and (plan.get("cierre") or {}).get("clave"):
@@ -289,6 +402,7 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
     if cierre_clave and cierre_ini is not None:
         inicio = min(cierre_ini, max(0.0, duracion - 2.5))
         guion["escenas"].append({"tipo": "cta", "ini": round(inicio, 2), "duracion": round(duracion - inicio, 2), "clave": cierre_clave})
+        fin_de_contenido = inicio
         palabras = [p for p in palabras if p[0] < inicio]
         notas.append(f"Cierre pidiendo comentar «{cierre_clave}»")
 
@@ -352,7 +466,21 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
         if pasos:
             notas.append(f"Numeré {len(pasos)} pasos")
 
-    if config["contadores"]:
+    calculadora = None
+    if config.get("calculadora"):
+        calculadora = _calculadora([list(p) for p in voz.get("palabras", [])], duracion, fin_de_contenido,
+                                  (plan.get("calculadora") or {}).get("ajustes"))
+        if calculadora:
+            calculadora["y"] = 42.5  # entre el gancho (arriba) y los subtítulos (58 %)
+            for capa in guion["capas"]:
+                if capa["tipo"] == "titulo":
+                    capa["y"] = 23  # el gancho sube un poco para dejar sitio a la calculadora
+            guion["capas"].append(calculadora)
+            notas.append(f"Calculadora de dinero con {len(calculadora['eventos'])} paso(s) que salen de lo que dices")
+        else:
+            notas.append("Pediste calculadora, pero no oí cifras de dinero en el video: no la puse.")
+
+    if config["contadores"] and not calculadora:
         contadores = _contadores(palabras, duracion)
         for m in plan.get("momentos", []):
             if m["tipo"] == "contador" and all(abs(m["t"] - c["ini"]) > 2.5 for c in contadores) and len(contadores) < 3:
@@ -369,12 +497,40 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
     puestas = 0
     for m in tarjetas[:3]:
         fin = round(min(duracion, m["t"] + 3.0), 2)
-        if all(c["fin"] <= m["t"] or c["ini"] >= fin for c in guion["capas"] if c["tipo"] in ("tarjeta", "contador")):
+        if all(c["fin"] <= m["t"] or c["ini"] >= fin for c in guion["capas"] if c["tipo"] in ("tarjeta", "contador", "calculadora")):
             guion["capas"].append({"tipo": "tarjeta", "variante": "notificacion", "ini": m["t"], "fin": fin, "x": 50, "y": 58,
                                    "nombre": marca_nombre, "texto": m["texto"]})
             puestas += 1
     if puestas:
         notas.append(f"{puestas} tarjeta(s) con frases de tu video")
+
+    if config.get("transiciones"):
+        estilo = (plan.get("transiciones") or {}).get("estilo") or "barrido"
+        elegidos = _transiciones(cortes or [], duracion)
+        for c in elegidos:
+            largo = (0.12, 0.33) if estilo == "impacto" else (0.2, 0.2)
+            guion["capas"].append({"tipo": "transicion", "estilo": estilo, "ini": round(max(0.0, c["t"] - largo[0]), 2), "fin": round(min(duracion, c["t"] + largo[1]), 2)})
+            if estilo == "impacto" and all(z["fin"] <= c["t"] - 0.1 or z["ini"] >= c["t"] + 0.3 for z in guion["zooms"]):
+                guion["zooms"].append({"ini": round(max(0.0, c["t"] - 0.1), 2), "fin": round(c["t"] + 0.3, 2), "escala": 1.12, "x": 50, "y": 40})
+        if elegidos:
+            notas.append(f"{len(elegidos)} transición(es) «{estilo}» sobre los cortes" + (" entre escenas" if any(c["tipo"] == "escena" for c in elegidos) else ""))
+        else:
+            notas.append("Pediste transiciones, pero este video no tiene cortes donde ponerlas (sube varias escenas o quita las pausas).")
+
+    if config.get("logo"):
+        if not logo:
+            notas.append("Pediste logo animado, pero esta marca no tiene logo: súbelo en «Logo de la marca» y vuelve a crear el video.")
+        else:
+            estilo_logo = (plan.get("logo") or {}).get("estilo") or "cierre"
+            tiene_cta = any(e.get("tipo") == "cta" for e in guion["escenas"])
+            if estilo_logo == "cierre" and tiene_cta:
+                guion.setdefault("marca", {})["logo"] = logo  # el cierre ya muestra el logo de la marca, ahora animado
+                notas.append("Logo animado en el cierre")
+            else:
+                largo = 1.8 if estilo_logo == "cierre" else 1.4 if estilo_logo == "intro" else max(1.0, duracion - 1.0)
+                ini_logo = max(0.0, duracion - largo) if estilo_logo == "cierre" else 0.2 if estilo_logo == "intro" else 0.5
+                guion["capas"].append({"tipo": "logo", "archivo": logo, "estilo": estilo_logo, "ini": round(ini_logo, 2), "fin": round(min(duracion, ini_logo + largo), 2)})
+                notas.append({"cierre": "Logo animado al final", "intro": "Logo animado al inicio", "marca": "Marca de agua con el logo"}[estilo_logo])
 
     if musica and plan.get("acabado", {}).get("pulso") and musica["confianza"] >= 0.55 and musica["fuertes"]:
         guion["pulso"] = {"tiempos": [round(t, 3) for t in musica["fuertes"]], "intensidad": 0.5}

@@ -59,3 +59,26 @@ export function campoSimple({ id, etiqueta, tipo = "text", ejemplo = "", autocom
   const entrada = el("input", { id, type: tipo, placeholder: ejemplo, autocomplete: autocompletar, spellcheck: "false", autocapitalize: "off" });
   return { nodo: el("div", { clase: "campo" }, el("label", { for: id, texto: etiqueta }), el("div", { clase: "entrada" }, entrada)), entrada };
 }
+
+/** Aviso informativo de cookies. Iris solo usa lo imprescindible, así que no bloquea nada ni pide permiso; los dos botones pesan lo mismo. */
+export function mostrarAvisoCookies() {
+  let visto = false;
+  try { visto = localStorage.getItem("iris-aviso-cookies") === "1"; } catch { /* sin almacenamiento */ }
+  if (visto || document.getElementById("aviso-cookies")) return;
+  const cerrar = () => { try { localStorage.setItem("iris-aviso-cookies", "1"); } catch { /* sin almacenamiento */ } nodo.remove(); document.body.classList.remove("con-aviso-cookies"); };
+  const entendido = el("button", { type: "button", clase: "boton", texto: "Entendido" });
+  const ver = el("a", { clase: "boton", href: "/legal/cookies.html", target: "_blank", rel: "noopener", texto: "Ver la política" });
+  const nodo = el("div", { id: "aviso-cookies", clase: "aviso-cookies vidrio", role: "region", "aria-label": "Aviso de cookies" },
+    el("p", {}, el("strong", { texto: "Solo una cookie imprescindible " }), "para mantener tu sesión. Sin publicidad ni terceros: no hace falta tu permiso."),
+    el("div", { clase: "acciones" }, entendido, ver));
+  entendido.addEventListener("click", cerrar);
+  ver.addEventListener("click", cerrar);
+  document.body.append(nodo);
+  document.body.classList.add("con-aviso-cookies"); // deja espacio al final de la página para que el aviso no tape nada
+}
+
+/** Enlaces a los textos legales para el pie de cada pantalla. */
+export function pieLegal() {
+  const enlace = (texto, ruta) => el("li", {}, el("a", { href: `/legal/${ruta}.html`, target: "_blank", rel: "noopener", texto }));
+  return el("ul", { clase: "pie-legal", "aria-label": "Textos legales" }, enlace("Privacidad", "privacidad"), enlace("Términos", "terminos"), enlace("Reembolsos", "reembolsos"), enlace("Cookies", "cookies"));
+}

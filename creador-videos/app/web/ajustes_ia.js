@@ -9,6 +9,7 @@ export async function abrirAjustesIA(alCambiar) {
   const fotogramas = el("input", { type: "checkbox", id: "ia-fotogramas", checked: estado.ver_fotogramas });
   const modelo = el("select", { id: "ia-modelo" }, estado.modelos.map((m) => el("option", { value: m.id, texto: m.nombre, selected: m.id === estado.modelo })));
   const clave = el("input", { id: "ia-clave-nueva", type: "password", autocomplete: "off", spellcheck: "false", placeholder: estado.final_clave ? `Clave guardada (${estado.final_clave})` : "Pega aquí tu clave de Anthropic", "aria-describedby": "ia-clave-ayuda" });
+  const consiente = el("input", { type: "checkbox", id: "ia-consiente", checked: estado.consentida });
   const resultado = el("div", { clase: "mensaje-campo", role: "status" });
   const botonProbar = el("button", { type: "button", clase: "boton pequeno" }, icono("rayo"), "Probar conexión");
   const botonBorrar = el("button", { type: "button", clase: "boton suave pequeno peligro", hidden: estado.origen !== "archivo" }, icono("papelera"), "Borrar la clave guardada");
@@ -19,15 +20,19 @@ export async function abrirAjustesIA(alCambiar) {
     el("p", { clase: "estado-ia" }, icono(estado.disponible ? "ok-circulo" : "info"), origen || "Todavía no hay una clave: Iris dirige con reglas. Con una clave, un director con IA propone el gancho, el énfasis y el acabado."),
     fila(activa, "Dirigir con IA", "Si la IA falla, el video se hace igual con reglas."),
     el("div", { clase: "campo" }, el("label", { for: modelo.id, clase: "rotulo", texto: "Modelo" }), el("div", { clase: "entrada" }, modelo, icono("abajo")),
-      el("p", { clase: "ayuda", texto: "Costo estimado por video: unos 0,05–0,20 USD con el modelo de calidad máxima y la mitad con el equilibrado (estimación, depende del largo del video)." })),
+      el("p", { clase: "ayuda" }, "Costo estimado por video con este modelo: ", el("span", { clase: "costo-estimado", texto: `≈ US$ ${estado.costo_estimado_usd.toFixed(2).replace(".", ",")}` }),
+        ". Lo cobra Anthropic a tu cuenta, no Iris. ", `Este mes llevas ≈ US$ ${estado.gastado_mes_usd.toFixed(2).replace(".", ",")} (estimado).`)),
     fila(fotogramas, "Dejar que la IA vea el video", "Envía 6 imágenes pequeñas del video. Si lo apagas, la IA solo recibe el texto."),
     el("div", { clase: "campo" }, el("label", { for: clave.id, clase: "rotulo", texto: "Clave de Anthropic" }), el("div", { clase: "entrada" }, clave),
       el("p", { id: "ia-clave-ayuda", clase: "ayuda", texto: "Se guarda solo en este equipo, con permisos de lectura solo para ti, y nunca vuelve al navegador. Para más seguridad, usa la variable de entorno ANTHROPIC_API_KEY." }),
       el("div", { clase: "acciones-fila" }, botonProbar, botonBorrar), resultado),
-    el("p", { clase: "ayuda aviso-privacidad" }, icono("escudo"), "Con la IA activa, a Anthropic se envía: el texto de lo que dices en el video con sus tiempos, tu instrucción, la ficha de la marca y tus respuestas del test. Tus videos y tus canciones no se envían."));
+    el("p", { clase: "ayuda aviso-privacidad" }, icono("escudo"), "Con la IA activa, a Anthropic se envía: el texto de lo que dices en el video con sus tiempos, tu instrucción, la ficha de la marca y tus respuestas del test. Tus videos y tus canciones no se envían."),
+    el("div", { clase: "consentimiento" }, consiente, el("label", { for: "ia-consiente" }, "Entiendo qué datos se envían a Anthropic y acepto enviarlos para dirigir mis videos con IA. Más detalles en la ",
+      el("a", { href: "/legal/privacidad.html", target: "_blank", rel: "noopener", texto: "política de privacidad" }), ".")));
 
   async function guardar() {
-    const cambios = { activa: activa.checked, ver_fotogramas: fotogramas.checked, modelo: modelo.value };
+    if (activa.checked && !consiente.checked) throw new Error("Para dirigir con IA, marca la casilla que confirma qué datos se envían a Anthropic.");
+    const cambios = { activa: activa.checked, ver_fotogramas: fotogramas.checked, modelo: modelo.value, consentimiento: consiente.checked };
     if (clave.value.trim()) cambios.clave = clave.value.trim();
     return api.iaGuardar(cambios);
   }

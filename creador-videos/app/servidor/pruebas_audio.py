@@ -64,6 +64,7 @@ def correr() -> list[str]:
     import audio
     import mezcla
     import musica
+    import musica as analisis_musical
 
     fallos: list[str] = []
 
@@ -160,6 +161,68 @@ def correr() -> list[str]:
         ok(mezcla.masterizar(None, base / "nada.m4a", 5.0, None) is None, "sin voz ni música no se inventa audio")
         ruidosa = "afftdn" in mezcla.cadena_de_voz(-30.0, -12.0) and "afftdn" not in mezcla.cadena_de_voz(-60.0, -12.0) and "afftdn" not in mezcla.cadena_de_voz(-30.0, -29.0)
         ok(ruidosa, "el reductor de ruido solo se activa con ruido de fondo y pausas que lo demuestren")
+
+        print("Efectos de sonido sintetizados")
+        import sonidos
+
+        def banda(y: np.ndarray, desde: float, hasta: float) -> float:
+            """Parte de la energía del sonido que cae entre dos frecuencias (0–1)."""
+            energia = np.abs(np.fft.rfft(y)) ** 2
+            frecuencias = np.fft.rfftfreq(len(y), 1 / sonidos.SR)
+            return float(energia[(frecuencias >= desde) & (frecuencias < hasta)].sum() / energia.sum())
+
+        for nombre, funcion in sonidos.EFECTOS.items():
+            y = funcion()
+            esperado = sonidos.DURACION[nombre]
+            ok(np.isfinite(y).all() and abs(float(np.abs(y).max()) - 1.0) < 1e-6 and abs(len(y) / sonidos.SR - esperado) < 0.01 and abs(float(y.mean())) < 0.05,
+               f"{nombre}: dura {len(y) / sonidos.SR:.2f} s, pico 1,0, sin continua y sin valores raros")
+            ok(np.array_equal(y, funcion()), f"{nombre}: es determinista (siempre suena igual)")
+        ok(banda(sonidos.impacto(), 0, 300) > 0.9 and banda(sonidos.brillo(), 2000, 24000) > 0.9 and banda(sonidos.pop(), 300, 1500) > 0.8
+           and banda(sonidos.tecla(), 0, 300) < 0.05 and banda(sonidos.tecla(), 1500, 24000) > 0.5 and banda(sonidos.whoosh(), 300, 3000) > 0.5,
+           "el carácter de cada sonido: impacto grave, pop medio, tecla seca y brillante, whoosh de medios, brillo agudo")
+        ok(sonidos.efecto("caja") is sonidos.efecto("caja"), "los efectos se calculan una sola vez")
+
+        def nivel_rms(y: np.ndarray, a: float, b: float, sr: int = sonidos.SR) -> float:
+            trozo = y[int(a * sr): int(b * sr)]
+            return float(np.sqrt(np.mean(trozo ** 2)) + 1e-12)
+
+        pista_fx = sonidos.pista([{"t": 1.0, "tipo": "impacto"}, {"t": 3.0, "tipo": "caja"}, {"t": 99.0, "tipo": "pop"}], 5.0)
+        ok(len(pista_fx) == 5 * sonidos.SR and abs(float(np.abs(pista_fx).max()) - 1.0) < 1e-6, "la pista mide lo que el video y su pico queda en 1,0 (un evento fuera del video se ignora)")
+        ok(nivel_rms(pista_fx, 1.0, 1.1) > 20 * nivel_rms(pista_fx, 2.0, 2.8) and nivel_rms(pista_fx, 3.0, 3.1) > 20 * nivel_rms(pista_fx, 4.5, 5.0), "cada efecto suena en su segundo y hay silencio entre ellos")
+        ok(not np.any(sonidos.pista([], 2.0)) and len(sonidos.pista([], 2.0)) == 2 * sonidos.SR, "sin eventos, la pista es silencio")
+        guion_fx = {"capas": [{"tipo": "transicion", "estilo": "barrido", "ini": 3.8, "fin": 4.2}, {"tipo": "transicion", "estilo": "impacto", "ini": 8.0, "fin": 8.4},
+                              {"tipo": "calculadora", "ini": 1.0, "fin": 12.0, "eventos": [{"t": 1.5, "dur": 1.0, "op": "fijar"}, {"t": 1.53, "dur": 1.0, "op": "fijar"},
+                                                                                           {"t": 6.0, "dur": 1.0, "op": "total"}]},
+                              {"tipo": "titulo", "ini": 0.2, "fin": 2.0}, {"tipo": "tarjeta", "ini": 9.0, "fin": 11.0}, {"tipo": "logo", "estilo": "cierre", "ini": 12.0, "fin": 13.8},
+                              {"tipo": "logo", "estilo": "marca", "ini": 0.5, "fin": 5.0}],
+                    "escenas": [{"tipo": "cta", "ini": 11.0, "duracion": 3.0}], "marca": {"logo": "m/logo.png"}}
+        sutil = sonidos.eventos_de_guion(guion_fx, "sutil")
+        tipos = [(e["tipo"], e["t"]) for e in sutil]
+        ok(("whoosh", 3.78) in tipos and ("impacto", 8.2) in tipos, "transiciones: el zumbido llega justo antes del corte y el impacto cae sobre él")
+        ok(sum(1 for e in sutil if e["tipo"] == "tecla") == 2 and ("caja", 6.5) in tipos and ("pop", 1.3) in tipos, "calculadora: una tecla por paso (dos casi iguales se funden), caja al confirmar el total, pop al entrar")
+        ok(("brillo", 12.45) in tipos and ("brillo", 11.45) in tipos and not any(e["t"] == 0.95 for e in sutil), "logo y cierre con logo: brillo; la marca de agua no suena")
+        marcado = sonidos.eventos_de_guion(guion_fx, "marcado")
+        ok(not any(e["tipo"] == "pop" and e["t"] == 9.0 for e in sutil) and any(e["tipo"] == "pop" and e["t"] == 9.0 for e in marcado) and any(e["tipo"] == "impacto" and e["t"] == 0.25 for e in marcado),
+           "«sutil» deja solo lo esencial; «marcado» suma el golpe del título y los pops de las tarjetas")
+        ok([e["t"] for e in marcado] == sorted(e["t"] for e in marcado), "los eventos salen ordenados")
+
+        efectos_wav = base / "efectos.wav"
+        sonidos.escribir(sonidos.pista([{"t": 3.6, "tipo": "caja"}, {"t": 6.5, "tipo": "tecla"}], duracion), efectos_wav)
+        for nivel in ("sutil", "marcado"):
+            destino_fx = base / f"con-efectos-{nivel}.m4a"
+            informe_fx = mezcla.masterizar(voz, destino_fx, duracion, None, efectos={"archivo": efectos_wav, "nivel": nivel})
+            medida_fx = audio.medir(destino_fx)
+            ok(informe_fx["con_efectos"] and abs(medida_fx["lufs"] - mezcla.OBJETIVO_LUFS) <= 1.0 and medida_fx["pico_db"] <= mezcla.PICO_MAXIMO + 0.3,
+               f"mezcla con efectos «{nivel}»: {medida_fx['lufs']} LUFS y pico {medida_fx['pico_db']} dBTP dentro de lo esperado")
+        sin_fx = base / "sin-efectos.m4a"
+        mezcla.masterizar(voz, sin_fx, duracion, None)
+        y_sin, y_sutil, y_marcado = (analisis_musical.decodificar(base / n) for n in ("sin-efectos.m4a", "con-efectos-sutil.m4a", "con-efectos-marcado.m4a"))
+        sr = analisis_musical.SR
+        ok(nivel_rms(y_sutil, 3.6, 3.8, sr) > 4 * nivel_rms(y_sin, 3.6, 3.8, sr), "el efecto se oye en la pausa de la voz (la caja a los 3,6 s, más de 12 dB sobre el silencio)")
+        ok(abs(nivel_rms(y_sutil, 0.5, 2.5, sr) / nivel_rms(y_sin, 0.5, 2.5, sr) - 1) < 0.1, "y la voz queda igual donde no hay efectos")
+        diferencia = 20 * np.log10(nivel_rms(y_marcado, 3.6, 3.8, sr) / nivel_rms(y_sutil, 3.6, 3.8, sr))
+        ok(3.5 < diferencia < 8.5, f"«marcado» suena unos 6 dB más fuerte que «sutil» ({diferencia:.1f} dB)")
+        ok(mezcla.masterizar(None, base / "x.m4a", 4.0, None, efectos={"archivo": efectos_wav, "nivel": "sutil"}) is None, "sin voz ni música, los efectos solos no se convierten en un audio")
 
     return fallos
 

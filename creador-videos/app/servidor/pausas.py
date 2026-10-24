@@ -29,17 +29,39 @@ def tramos_a_conservar(duracion: float, silencios: list[tuple[float, float]], ma
     return [(a, b) for a, b in conservar if b - a > 0.05]
 
 
+def remapear(t: float, tramos: list[tuple[float, float]]) -> float:
+    """Instante `t` de la toma original → instante en la toma sin pausas. Lo que cae en una pausa quitada pasa al inicio del tramo siguiente."""
+    acumulado = 0.0
+    for a, b in tramos:
+        if t < a:
+            return acumulado
+        if t <= b:
+            return acumulado + (t - a)
+        acumulado += b - a
+    return acumulado
+
+
+def cortes_de(tramos: list[tuple[float, float]]) -> list[float]:
+    """Instantes (en la toma sin pausas) donde se unieron dos tramos: ahí hay un corte de verdad."""
+    salida, acumulado = [], 0.0
+    for a, b in tramos[:-1]:
+        acumulado += b - a
+        salida.append(round(acumulado, 3))
+    return salida
+
+
 def quitar(origen: Path, destino: Path, duracion: float, tiene_audio: bool, umbral_db: int = -34, minimo: float = 0.55) -> dict:
-    """Escribe `destino` sin las pausas. Devuelve cuántos segundos se quitaron (0 si no había nada que quitar)."""
+    """Escribe `destino` sin las pausas. Devuelve cuántos segundos se quitaron (0 si no había nada que quitar), los `tramos` conservados
+    y los instantes de `cortes` en la toma nueva."""
     if not tiene_audio:
-        return {"quitado": 0.0, "cortes": 0, "archivo": origen}
+        return {"quitado": 0.0, "cortes": 0, "archivo": origen, "tramos": [(0.0, duracion)], "instantes": []}
     tramos = tramos_a_conservar(duracion, _silencios(origen, umbral_db, minimo))
     while len(tramos) > 250:  # demasiados cortes: se sube el mínimo de pausa para no saturar el filtro
         minimo += 0.2
         tramos = tramos_a_conservar(duracion, _silencios(origen, umbral_db, minimo))
     nuevo = sum(b - a for a, b in tramos)
     if len(tramos) <= 1 and nuevo >= duracion - 0.05:
-        return {"quitado": 0.0, "cortes": 0, "archivo": origen}
+        return {"quitado": 0.0, "cortes": 0, "archivo": origen, "tramos": [(0.0, duracion)], "instantes": []}
     cadena = []
     for i, (a, b) in enumerate(tramos):
         cadena.append(f"[0:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS[v{i}];[0:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS[a{i}]")
@@ -50,4 +72,4 @@ def quitar(origen: Path, destino: Path, duracion: float, tiene_audio: bool, umbr
                                 "-movflags", "+faststart", str(destino)], capture_output=True, text=True, errors="replace")
     if resultado.returncode != 0 or not destino.exists():
         raise RuntimeError("No pude quitar las pausas: " + (resultado.stderr.strip().splitlines() or ["error desconocido"])[-1])
-    return {"quitado": round(duracion - nuevo, 2), "cortes": len(tramos) - 1, "archivo": destino}
+    return {"quitado": round(duracion - nuevo, 2), "cortes": len(tramos) - 1, "archivo": destino, "tramos": tramos, "instantes": cortes_de(tramos)}

@@ -1,6 +1,6 @@
 import { ReactNode, useId } from "react";
-import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import { formatearNumero, trayecto, valorContador } from "./logica";
+import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { estadoCalculadora, formatearNumero, opacidadDestello, posicionBarrido, suave, trayecto, valorContador } from "./logica";
 import { Capa, Marca } from "./tipos";
 import { recurso, useUnidad } from "./util";
 
@@ -312,6 +312,224 @@ export const Titulo = ({ capa, marca }: { capa: De<"titulo">; marca: Marca }) =>
   );
 };
 
+
+const TECLAS = ["−", "+", "%", "="];
+const TECLA_DE: Record<string, number> = { restar: 0, sumar: 1, restar_pct: 2, total: 3 };
+const COLOR_DE: Record<string, string> = { restar: "#FF5A52", restar_pct: "#FF5A52", sumar: "#4CFF8A", total: "#FFD24A", mostrar: "#9EC9FF" };
+
+/** Calculadora de dinero: el valor sube o baja en sincronía con la voz y cada operación enciende su tecla. */
+export const Calculadora = ({ capa, marca }: { capa: De<"calculadora">; marca: Marca }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const u = useUnidad();
+  const entrada = useEntrada();
+  const t = capa.ini + frame / fps;
+  const moneda = capa.moneda ?? "$";
+  const { valor, evento, desde } = estadoCalculadora(t, capa.eventos);
+  const op = evento?.op ?? "fijar";
+  const animando = evento !== null && evento.a !== null && desde < evento.dur;
+  const color = animando ? (op === "fijar" ? marca.colores.acento : COLOR_DE[op] ?? "#E8FFE9") : "#E8FFE9";
+  const texto = `${valor < 0 ? "-" : ""}${moneda}${formatearNumero(Math.abs(valor), ".")}`;
+  const ancho = 900 * u;
+  const tamano = Math.min(152 * u, (ancho - 100 * u) / (Math.max(5, texto.length) * 0.62));
+  const marcaDelta = evento && desde < Math.max(evento.dur, 2.4) ? Math.min(1, desde / 0.18, (Math.max(evento.dur, 2.4) - desde) / 0.4) : 0;
+  const signo = op === "restar" || op === "restar_pct" ? "−" : op === "sumar" ? "+" : op === "total" ? "=" : "";
+  const cifraDelta = evento ? (op === "restar_pct" ? `${formatearNumero(evento.valor, ".")}%` : `${moneda}${formatearNumero(evento.valor, ".")}`) : "";
+  const tecla = TECLA_DE[op];
+  const pulsoTecla = evento && desde < 0.4 ? 1 - Math.sin((desde / 0.4) * Math.PI) * 0.1 : 1;
+  const mono = "'SF Mono', Menlo, 'Courier New', monospace";
+  return (
+    <div
+      style={{
+        width: ancho,
+        borderRadius: 40 * u,
+        padding: `${22 * u}px ${26 * u}px ${26 * u}px`,
+        background: "linear-gradient(160deg, rgba(34,36,44,.96), rgba(12,13,17,.97))",
+        border: `${2 * u}px solid rgba(255,255,255,.14)`,
+        boxShadow: `0 ${26 * u}px ${70 * u}px rgba(0,0,0,.55), inset 0 ${2 * u}px 0 rgba(255,255,255,.08)`,
+        transform: `translateY(${interpolate(entrada, [0, 1], [30 * u, 0])}px) scale(${interpolate(entrada, [0, 1], [0.85, 1])})`,
+        fontFamily: mono,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 12 * u }}>
+        <div style={{ display: "flex", gap: 9 * u }}>
+          {["#FF5F57", "#FEBC2E", "#28C840"].map((c) => (
+            <div key={c} style={{ width: 16 * u, height: 16 * u, borderRadius: "50%", backgroundColor: c, opacity: 0.85 }} />
+          ))}
+        </div>
+        <div
+          style={{
+            fontFamily: marca.fuente,
+            fontWeight: 900,
+            fontSize: 28 * u,
+            letterSpacing: 2 * u,
+            textTransform: "uppercase",
+            color: evento ? COLOR_DE[op] ?? marca.colores.acento : "#9AA0AA",
+            opacity: evento ? 1 : 0.7,
+          }}
+        >
+          {evento?.etiqueta ?? "Calculadora"}
+        </div>
+      </div>
+      <div
+        style={{
+          borderRadius: 24 * u,
+          background: "linear-gradient(180deg, #0A110D, #0F1A13)",
+          boxShadow: `inset 0 ${6 * u}px ${18 * u}px rgba(0,0,0,.6)`,
+          padding: `${12 * u}px ${28 * u}px ${16 * u}px`,
+          textAlign: "right",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ height: 52 * u, fontSize: 42 * u, fontWeight: 800, color: COLOR_DE[op] ?? "#E8FFE9", opacity: marcaDelta, transform: `translateY(${(1 - marcaDelta) * 10 * u}px)`, whiteSpace: "nowrap" }}>
+          {signo ? `${signo} ` : ""}
+          {cifraDelta}
+        </div>
+        <div
+          style={{
+            fontSize: tamano,
+            fontWeight: 800,
+            lineHeight: 1.05,
+            color,
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
+            textShadow: `0 0 ${26 * u}px ${color}66`,
+          }}
+        >
+          {texto}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 16 * u, paddingTop: 14 * u }}>
+        {TECLAS.map((c, i) => {
+          const activa = tecla === i && evento !== null && desde < 1.2;
+          return (
+            <div
+              key={c}
+              style={{
+                flex: 1,
+                height: 64 * u,
+                borderRadius: 20 * u,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: marca.fuente,
+                fontWeight: 900,
+                fontSize: 40 * u,
+                color: activa ? "#101114" : "#D8DBE2",
+                backgroundColor: activa ? COLOR_DE[op] : "rgba(255,255,255,.09)",
+                boxShadow: activa ? `0 0 ${30 * u}px ${COLOR_DE[op]}aa` : `inset 0 ${-4 * u}px 0 rgba(0,0,0,.35)`,
+                transform: `scale(${activa ? pulsoTecla : 1})`,
+              }}
+            >
+              {c}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/** La imagen del logo con un destello que la cruza una vez; la usan el cierre y la capa de logo. */
+export const LogoImagen = ({ archivo, lado, destello = true }: { archivo: string; lado: number; destello?: boolean }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const u = useUnidad();
+  const fuente = recurso(archivo);
+  const brillo = interpolate(frame, [Math.round(fps * 0.45), Math.round(fps * 1.25)], [-30, 130], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <div style={{ position: "relative", width: lado, height: lado }}>
+      <Img src={fuente} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", filter: `drop-shadow(0 ${10 * u}px ${28 * u}px rgba(0,0,0,.5))` }} />
+      {destello && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            WebkitMaskImage: `url(${fuente})`,
+            WebkitMaskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            backgroundImage: `linear-gradient(105deg, transparent ${brillo - 18}%, rgba(255,255,255,.9) ${brillo}%, transparent ${brillo + 18}%)`,
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+/** Logo animado: entra con un resorte, un destello lo cruza una vez y respira con un halo del color de la marca. */
+export const LogoAnimado = ({ capa, marca }: { capa: De<"logo">; marca: Marca }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  const u = useUnidad();
+  const entrada = useEntrada();
+  const marcaDeAgua = capa.estilo === "marca";
+  const lado = (capa.estilo === "cierre" ? 560 : marcaDeAgua ? 150 : 430) * u;
+  const salida = interpolate(frame, [durationInFrames - 8, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const respira = 1 + Math.sin(frame / 12) * 0.012;
+  const centro = capa.estilo === "cierre" ? { left: "50%", top: "46%" } : marcaDeAgua ? { left: "86%", top: "18%" } : { left: "50%", top: "30%" };
+  return (
+    <AbsoluteFill style={{ opacity: marcaDeAgua ? Math.min(0.78, salida) : salida }}>
+      {capa.estilo === "cierre" && <AbsoluteFill style={{ backgroundColor: `rgba(0,0,0,${0.62 * Math.min(1, entrada * 1.5)})` }} />}
+      <div style={{ position: "absolute", ...centro, width: lado, height: lado, transform: `translate(-50%, -50%) scale(${interpolate(entrada, [0, 1], [0.55, 1]) * respira})` }}>
+        {!marcaDeAgua && (
+          <div style={{ position: "absolute", inset: -40 * u, borderRadius: "50%", background: `radial-gradient(circle, ${marca.colores.acento}55 0%, transparent 65%)`, opacity: 0.4 + Math.sin(frame / 14) * 0.15 }} />
+        )}
+        <LogoImagen archivo={capa.archivo} lado={lado} destello={!marcaDeAgua} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** Transición sobre un corte: destello, cortina del color de la marca o impacto con anillo. El corte ocurre a mitad de la pieza. */
+export const Transicion = ({ capa, marca }: { capa: De<"transicion">; marca: Marca }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames, width, height } = useVideoConfig();
+  const p = frame / Math.max(1, durationInFrames - 1);
+  if (capa.estilo === "destello") {
+    return <AbsoluteFill style={{ backgroundColor: "#fff", opacity: 0.9 * opacidadDestello(p) }} />;
+  }
+  if (capa.estilo === "barrido") {
+    const x = posicionBarrido(p);
+    return (
+      <AbsoluteFill style={{ overflow: "hidden" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: -height * 0.1,
+            left: `${x}%`,
+            width: "112%",
+            height: height * 1.2,
+            transform: "skewX(-14deg)",
+            background: `linear-gradient(90deg, ${marca.colores.acento}, ${marca.colores.acento}ee)`,
+            boxShadow: `-${width * 0.02}px 0 0 rgba(255,255,255,.9), ${width * 0.03}px 0 ${width * 0.06}px rgba(0,0,0,.35)`,
+          }}
+        />
+      </AbsoluteFill>
+    );
+  }
+  const radio = interpolate(suave(p), [0, 1], [0.05, 1.25]) * Math.hypot(width, height) * 0.5;
+  return (
+    <AbsoluteFill>
+      <AbsoluteFill style={{ backgroundColor: "#fff", opacity: 0.55 * opacidadDestello(Math.min(1, p * 1.6)) }} />
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: radio * 2,
+          height: radio * 2,
+          marginLeft: -radio,
+          marginTop: -radio,
+          borderRadius: "50%",
+          border: `${width * 0.03 * (1 - p)}px solid ${marca.colores.acento}`,
+          opacity: 1 - p * 0.85,
+        }}
+      />
+    </AbsoluteFill>
+  );
+};
+
 export const VistaCapa = ({ capa, marca }: { capa: Capa; marca: Marca }) => {
   switch (capa.tipo) {
     case "contador":
@@ -328,5 +546,11 @@ export const VistaCapa = ({ capa, marca }: { capa: Capa; marca: Marca }) => {
       return <PalabraGigante capa={capa} marca={marca} />;
     case "titulo":
       return <Titulo capa={capa} marca={marca} />;
+    case "calculadora":
+      return <Calculadora capa={capa} marca={marca} />;
+    case "logo":
+      return <LogoAnimado capa={capa} marca={marca} />;
+    case "transicion":
+      return <Transicion capa={capa} marca={marca} />;
   }
 };

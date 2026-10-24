@@ -9,6 +9,9 @@ from __future__ import annotations
 import re
 import unicodedata
 
+import numeros
+
+from .. import formatos
 from ..logica_texto import normalizar
 from . import perfil as perfiles
 
@@ -18,17 +21,36 @@ MOMENTOS = ["acercamiento", "insignia", "contador", "tarjeta"]
 LOOKS = ["natural", "calido", "frio", "cine", "vibrante"]
 ENERGIAS = ["baja", "media", "alta"]
 RITMOS = ["lento", "medio", "rapido"]
+FORMATOS_IA = [f for f in formatos.FORMATOS if f != "auto"]
+CAPACIDADES = ["calculadora", "transiciones", "sonidos", "logo", "pausas", "musica", "subtitulos", "palabras_clave", "cierre", "gancho", "acercamientos", "pasos",
+               "antes_despues", "tarjetas", "acabado", "otra"]
+ESTILOS_TRANSICION = ["destello", "barrido", "impacto"]
+NIVELES_SONIDO = ["ninguno", "sutil", "marcado"]
+ESTILOS_LOGO = ["cierre", "intro", "marca"]
+OPERACIONES_IA = ["restar", "sumar", "total", "mostrar", "restar_pct"]
 
 # Esquema de la respuesta de la IA (salida estructurada). Sin mínimos ni máximos: eso lo hace cumplir `sanear`.
 ESQUEMA: dict = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["concepto", "gancho", "claves", "momentos", "cierre", "musica", "acabado", "segundos_entre_acercamientos", "alertas"],
+    "required": ["concepto", "formato", "requisitos", "gancho", "claves", "momentos", "calculadora", "transiciones", "sonidos", "logo", "cierre", "musica", "acabado",
+                 "segundos_entre_acercamientos", "alertas"],
     "properties": {
         "concepto": {"type": "object", "additionalProperties": False, "required": ["resumen", "tono", "tipo_de_gancho"], "properties": {
             "resumen": {"type": "string"}, "tono": {"type": "string", "enum": TONOS}, "tipo_de_gancho": {"type": "string", "enum": GANCHOS}}},
         "gancho": {"type": "object", "additionalProperties": False, "required": ["texto", "alternativas"], "properties": {
             "texto": {"type": "string"}, "alternativas": {"type": "array", "items": {"type": "string"}}}},
+        "formato": {"type": "string", "enum": FORMATOS_IA},
+        "requisitos": {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["pedido", "capacidad", "nota"], "properties": {
+            "pedido": {"type": "string"}, "capacidad": {"type": "string", "enum": CAPACIDADES}, "nota": {"type": "string"}}}},
+        "calculadora": {"type": "object", "additionalProperties": False, "required": ["usar", "ajustes"], "properties": {
+            "usar": {"type": "boolean"}, "ajustes": {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["t", "op"], "properties": {
+                "t": {"type": "number"}, "op": {"type": "string", "enum": OPERACIONES_IA}}}}}},
+        "transiciones": {"type": "object", "additionalProperties": False, "required": ["usar", "estilo"], "properties": {
+            "usar": {"type": "boolean"}, "estilo": {"type": "string", "enum": ESTILOS_TRANSICION}}},
+        "sonidos": {"type": "object", "additionalProperties": False, "required": ["nivel"], "properties": {"nivel": {"type": "string", "enum": NIVELES_SONIDO}}},
+        "logo": {"type": "object", "additionalProperties": False, "required": ["usar", "estilo"], "properties": {
+            "usar": {"type": "boolean"}, "estilo": {"type": "string", "enum": ESTILOS_LOGO}}},
         "claves": {"type": "array", "items": {"type": "string"}},
         "momentos": {"type": "array", "items": {"type": "object", "additionalProperties": False, "required": ["t", "tipo", "motivo"], "properties": {
             "t": {"type": "number"}, "tipo": {"type": "string", "enum": MOMENTOS}, "motivo": {"type": "string"},
@@ -103,6 +125,12 @@ def plan_base(contexto: dict) -> dict:
         energia = "alta" if (referencia.get("ritmo") or 0) >= 3 else "media"
     return {
         "concepto": {"resumen": "", "tono": (contexto.get("perfil") or {}).get("tono") or "cercano", "tipo_de_gancho": "promesa"},
+        "formato": None,
+        "requisitos": [],
+        "calculadora": {"usar": False, "ajustes": []},
+        "transiciones": {"usar": False, "estilo": "barrido"},
+        "sonidos": {"nivel": "ninguno"},
+        "logo": {"usar": False, "estilo": "cierre"},
         "gancho": {"texto": "", "alternativas": []},
         "claves": [],
         "momentos": [],
@@ -192,6 +220,47 @@ def sanear(bruto: object, contexto: dict) -> tuple[dict | None, list[str]]:
         momentos.append(item)
         ultimo = t
     plan["momentos"] = momentos[: max(1, int(duracion // max(3.0, ef["efectos_cada"])) + 1)]
+
+    plan["formato"] = bruto.get("formato") if bruto.get("formato") in FORMATOS_IA else None
+
+    requisitos, vistos = [], set()
+    for r in (bruto.get("requisitos") or [])[:20]:
+        if not isinstance(r, dict):
+            continue
+        pedido, capacidad = _limpiar_linea(r.get("pedido"), 160), r.get("capacidad") if r.get("capacidad") in CAPACIDADES else "otra"
+        if pedido and (capacidad, pedido.lower()) not in vistos:
+            vistos.add((capacidad, pedido.lower()))
+            requisitos.append({"pedido": pedido, "capacidad": capacidad, "nota": _limpiar_linea(r.get("nota"), 160)})
+    plan["requisitos"] = requisitos[:12]
+
+    # La calculadora solo usa cifras de dinero que de verdad se dicen; la IA solo puede decir qué hace cada una (restar, sumar, total…), nunca poner números.
+    dichas = [c for c in numeros.encontrar(contexto.get("palabras", [])) if c["clase"] in ("dinero", "porcentaje")]
+    calc = bruto.get("calculadora") if isinstance(bruto.get("calculadora"), dict) else {}
+    ajustes = []
+    for a in (calc.get("ajustes") or [])[:20]:
+        try:
+            t = float(a.get("t"))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if a.get("op") in OPERACIONES_IA and any(abs(c["ini"] - t) <= 0.7 for c in dichas):
+            ajustes.append({"t": round(t, 2), "op": a["op"]})
+        else:
+            avisos.append("Descarté un ajuste de la calculadora que no corresponde a una cifra dicha en el video.")
+    usar_calculadora = bool(calc.get("usar")) and bool(dichas)
+    if calc.get("usar") and not dichas:
+        avisos.append("La IA propuso una calculadora, pero en el video no se dicen cifras de dinero.")
+    plan["calculadora"] = {"usar": usar_calculadora, "ajustes": ajustes}
+
+    transiciones = bruto.get("transiciones") if isinstance(bruto.get("transiciones"), dict) else {}
+    hay_cortes = bool(contexto.get("cortes"))
+    plan["transiciones"] = {"usar": bool(transiciones.get("usar")) and hay_cortes,
+                            "estilo": transiciones.get("estilo") if transiciones.get("estilo") in ESTILOS_TRANSICION else "barrido"}
+    if transiciones.get("usar") and not hay_cortes:
+        avisos.append("La IA propuso transiciones, pero este video no tiene cortes donde ponerlas.")
+    sonidos = bruto.get("sonidos") if isinstance(bruto.get("sonidos"), dict) else {}
+    plan["sonidos"] = {"nivel": sonidos.get("nivel") if sonidos.get("nivel") in NIVELES_SONIDO else "ninguno"}
+    logo = bruto.get("logo") if isinstance(bruto.get("logo"), dict) else {}
+    plan["logo"] = {"usar": bool(logo.get("usar")) and bool(contexto.get("tiene_logo")), "estilo": logo.get("estilo") if logo.get("estilo") in ESTILOS_LOGO else "cierre"}
 
     cierre = bruto.get("cierre") if isinstance(bruto.get("cierre"), dict) else {}
     clave = re.sub(r"[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]", "", str(cierre.get("clave") or ""))[:20].upper()

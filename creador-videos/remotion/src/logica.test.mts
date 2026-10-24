@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { duracionPagina, escalaPorPulso, filtroDeAcabado, formatearNumero, limpiar, normalizar, paginar, trayecto, valorContador, zoomEn } from "./logica.ts";
+import { duracionPagina, escalaPorPulso, estadoCalculadora, filtroDeAcabado, formatearNumero, limpiar, normalizar, opacidadDestello, paginar, posicionBarrido, suave, trayecto, valorContador, zoomEn } from "./logica.ts";
 import { duracionTotal } from "./tipos.ts";
 import type { PalabraT, Props } from "./tipos.ts";
 
@@ -89,3 +89,33 @@ assert.ok(escalaPorPulso(1.1, [1, 3], 1) < 1.02 && escalaPorPulso(1.1, [1, 3], 1
 assert.ok(escalaPorPulso(2, [1, 3], 1) - 1 < 0.0001);
 casi(escalaPorPulso(1, [1], 0), 1);
 casi(escalaPorPulso(5), 1);
+
+// Calculadora: fija 8,5 M, resta 1 M, muestra el valor de un regalo sin tocar el total y confirma el resultado.
+const eventos = [
+  { t: 2, dur: 1, op: "fijar", valor: 8500000, de: 0, a: 8500000 },
+  { t: 10, dur: 1, op: "restar", valor: 1000000, de: 8500000, a: 7500000 },
+  { t: 14, dur: 1, op: "mostrar", valor: 300000, de: null, a: null },
+  { t: 18, dur: 1, op: "total", valor: 7500000, de: 7500000, a: 7500000 },
+] as const;
+const estados = (t: number) => estadoCalculadora(t, eventos as unknown as Parameters<typeof estadoCalculadora>[1]);
+casi(estados(1).valor, 0);
+assert.equal(estados(1).evento, null);
+casi(estados(2).valor, 0);
+assert.ok(estados(2.5).valor > 0 && estados(2.5).valor < 8500000, "a mitad de camino el valor sube");
+casi(estados(3.2).valor, 8500000);
+casi(estados(9).valor, 8500000);
+assert.ok(estados(10.5).valor < 8500000 && estados(10.5).valor > 7500000, "al restar el valor baja de forma progresiva");
+casi(estados(11.5).valor, 7500000);
+casi(estados(14.5).valor, 7500000);
+assert.equal(estados(14.5).evento?.op, "mostrar");
+casi(estados(19.5).valor, 7500000);
+assert.ok(estados(10.2).valor > estados(10.6).valor, "baja con el tiempo");
+casi(suave(0), 0);
+casi(suave(1), 1);
+assert.ok(suave(0.5) > 0.5);
+casi(opacidadDestello(0), 0);
+casi(opacidadDestello(0.4), 1);
+casi(opacidadDestello(1), 0);
+casi(posicionBarrido(0), -110);
+casi(posicionBarrido(0.5), 0);
+casi(posicionBarrido(1), 110);

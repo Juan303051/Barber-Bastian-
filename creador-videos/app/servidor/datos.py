@@ -18,7 +18,7 @@ _ruta_abierta: Path | None = None
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS usuarios (
   id INTEGER PRIMARY KEY AUTOINCREMENT, correo TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL,
-  sal BLOB NOT NULL, clave BLOB NOT NULL, creado REAL NOT NULL);
+  sal BLOB NOT NULL, clave BLOB NOT NULL, creado REAL NOT NULL, acepto_version TEXT, acepto_en REAL);
 CREATE TABLE IF NOT EXISTS sesiones (
   token TEXT PRIMARY KEY, usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
   creada REAL NOT NULL, expira REAL NOT NULL);
@@ -32,14 +32,14 @@ CREATE TABLE IF NOT EXISTS trabajos (
   fuente_archivo TEXT, fuente_nombre TEXT, fuente_duracion REAL, estado TEXT NOT NULL, etapa TEXT, progreso REAL DEFAULT 0,
   mensaje TEXT, error TEXT, resultado TEXT, referencias TEXT DEFAULT '[]', fotogramas_total INTEGER DEFAULT 0,
   fotogramas_listos INTEGER DEFAULT 0, eta REAL, creado REAL NOT NULL, actualizado REAL NOT NULL, orden INTEGER DEFAULT 0, notas TEXT, fuente_vertical INTEGER DEFAULT 1,
-  plan TEXT, calidad TEXT, musica_id TEXT, ia_info TEXT);
+  plan TEXT, calidad TEXT, musica_id TEXT, ia_info TEXT, escenas TEXT, cumplimiento TEXT);
 CREATE TABLE IF NOT EXISTS musica (
   id TEXT PRIMARY KEY, usuario_id INTEGER, titulo TEXT NOT NULL, archivo TEXT, estado TEXT NOT NULL, etapa TEXT, error TEXT,
   analisis TEXT, licencia TEXT DEFAULT 'sin-confirmar', activa INTEGER DEFAULT 1, creada REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS perfiles (marca TEXT PRIMARY KEY, datos TEXT NOT NULL, actualizado REAL NOT NULL);
 """
 
-CAMPOS_JSON = {"opciones", "perfil", "referencias", "notas", "plan", "calidad", "ia_info", "analisis", "datos"}
+CAMPOS_JSON = {"opciones", "perfil", "referencias", "notas", "plan", "calidad", "ia_info", "analisis", "datos", "escenas", "cumplimiento"}
 
 
 def abrir() -> sqlite3.Connection:
@@ -63,7 +63,11 @@ def abrir() -> sqlite3.Connection:
 
 def _completar_columnas(conexion: sqlite3.Connection) -> None:
     """Si la base viene de una versión anterior, añade las columnas que le faltan en vez de fallar."""
-    nuevas = {"notas": "TEXT", "fuente_vertical": "INTEGER DEFAULT 1", "plan": "TEXT", "calidad": "TEXT", "musica_id": "TEXT", "ia_info": "TEXT"}
+    existentes_usuarios = {f["name"] for f in conexion.execute("PRAGMA table_info(usuarios)").fetchall()}
+    for columna, definicion in {"acepto_version": "TEXT", "acepto_en": "REAL"}.items():
+        if columna not in existentes_usuarios:
+            conexion.execute(f"ALTER TABLE usuarios ADD COLUMN {columna} {definicion}")
+    nuevas = {"notas": "TEXT", "fuente_vertical": "INTEGER DEFAULT 1", "plan": "TEXT", "calidad": "TEXT", "musica_id": "TEXT", "ia_info": "TEXT", "escenas": "TEXT", "cumplimiento": "TEXT"}
     existentes = {f["name"] for f in conexion.execute("PRAGMA table_info(trabajos)").fetchall()}
     for columna, definicion in nuevas.items():
         if columna not in existentes:

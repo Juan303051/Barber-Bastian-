@@ -1,4 +1,5 @@
 import { AbsoluteFill, Img, OffthreadVideo, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { LogoImagen } from "./piezas";
 import { Escena, Marca } from "./tipos";
 import { recurso, useUnidad } from "./util";
 
@@ -94,7 +95,7 @@ const Cierre = ({ texto, clave, marca }: { texto?: string; clave?: string; marca
     <AbsoluteFill
       style={{ justifyContent: "center", alignItems: "center", gap: 44 * u, padding: 80 * u, transform: `scale(${interpolate(entrada, [0, 1], [0.9, 1])})` }}
     >
-      {marca.logo && <Img src={recurso(marca.logo)} style={{ width: 300 * u, height: 300 * u, objectFit: "contain" }} />}
+      {marca.logo && <LogoImagen archivo={marca.logo} lado={300 * u} />}
       {clave ? (
         <>
           <div style={{ ...titulo, fontSize: 70 * u }}>Comenta</div>

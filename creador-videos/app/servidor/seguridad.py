@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from . import datos
 
+VERSION_POLITICAS = "2026-10-24"  # cambia cuando cambian los textos legales: así se vuelve a pedir la aceptación
 SESION_RECORDADA = 30 * 24 * 3600
 SESION_CORTA = 12 * 3600
 VENTANA_INTENTOS = 15 * 60
@@ -69,7 +70,7 @@ def usuario_de_token(token: str | None) -> dict | None:
     if not token:
         return None
     return datos.uno(
-        "SELECT u.id, u.correo, u.nombre FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id WHERE s.token = ? AND s.expira > ?",
+        "SELECT u.id, u.correo, u.nombre, u.acepto_version FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id WHERE s.token = ? AND s.expira > ?",
         (_hash_token(token), datos.ahora()))
 
 

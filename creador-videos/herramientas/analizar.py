@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import statistics
 from pathlib import Path
 
+import numeros
 from comun import TIPOS, boveda_empresa, carpeta_analisis, correr, escribir_atomico, nombre, seguro, videos
 
 _whisper = {"modelo": None, "fallo": False}
@@ -80,6 +82,7 @@ def _voz(ruta: Path, duracion: float, modelo: str, avance=None, idioma: str | No
         return None
     try:
         if _whisper["modelo"] is None:
+            os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")  # la descarga del modelo no manda estadísticas de uso
             from faster_whisper import WhisperModel
             _whisper["modelo"] = WhisperModel(modelo, compute_type="int8")
         generador, info = _whisper["modelo"].transcribe(str(ruta), vad_filter=True, word_timestamps=True, language=idioma)
@@ -88,7 +91,7 @@ def _voz(ruta: Path, duracion: float, modelo: str, avance=None, idioma: str | No
             segmentos.append(segmento)
             if avance and duracion:
                 avance(min(1.0, segmento.end / duracion))
-        palabras = [[round(w.start, 2), round(w.end, 2), w.word.strip()] for s in segmentos for w in (s.words or [])]
+        palabras = numeros.unir_fragmentos([[round(w.start, 2), round(w.end, 2), w.word.strip()] for s in segmentos for w in (s.words or [])])
         segmentos = [{"ini": round(s.start, 1), "fin": round(s.end, 1), "texto": s.text.strip()}
                      for s in segmentos]
     except Exception as error:  # sin el paquete, sin modelo descargado o sin internet

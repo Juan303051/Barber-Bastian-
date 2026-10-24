@@ -1,4 +1,4 @@
-import type { EstiloPalabras, PalabraT, Zoom } from "./tipos.ts";
+import type { EstiloPalabras, EventoCalculo, PalabraT, Zoom } from "./tipos.ts";
 
 export type Token = { texto: string; ini: number; fin: number; clave: boolean; serif: boolean };
 export type Pagina = { ini: number; fin: number; tokens: Token[] };
@@ -112,3 +112,36 @@ export function escalaPorPulso(t: number, tiempos: number[] = [], intensidad = 0
   const k = Math.min(1, Math.max(0, intensidad));
   return 1 + 0.02 * k * Math.exp(-(t - previo) / 0.12);
 }
+
+/** Frena al final: el número «aterriza» en su valor. */
+export const suave = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+
+/** Estado de la calculadora en el segundo `t`: valor en pantalla, paso que se está mostrando y qué tan avanzado va. */
+export function estadoCalculadora(t: number, eventos: EventoCalculo[]) {
+  let reposo = 0;
+  let valor = 0;
+  let actual: EventoCalculo | null = null;
+  for (const e of eventos) {
+    if (t < e.t) break;
+    actual = e;
+    if (e.a === null) continue;
+    const avance = (t - e.t) / Math.max(0.05, e.dur);
+    valor = avance >= 1 ? e.a : (e.de ?? reposo) + (e.a - (e.de ?? reposo)) * suave(avance);
+    if (avance >= 1) reposo = e.a;
+    else break;
+  }
+  const progreso = actual ? Math.min(1, (t - actual.t) / Math.max(0.05, actual.dur)) : 0;
+  return { valor: actual === null ? 0 : actual.a === null && valor === 0 ? reposo : valor, evento: actual, progreso, desde: actual ? t - actual.t : 0 };
+}
+
+/** Opacidad del destello a lo largo de la transición (0–1): sube rápido hasta el corte y se disipa. */
+export const opacidadDestello = (p: number) => {
+  const x = Math.min(1, Math.max(0, p));
+  return x < 0.4 ? x / 0.4 : (1 - x) / 0.6;
+};
+
+/** Posición horizontal (en % del ancho) de la cortina del barrido: entra, tapa el corte y sale por el otro lado. */
+export const posicionBarrido = (p: number) => {
+  const x = Math.min(1, Math.max(0, p));
+  return x < 0.5 ? -110 + 110 * suave(x / 0.5) : 110 * suave((x - 0.5) / 0.5);
+};

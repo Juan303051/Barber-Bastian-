@@ -17,7 +17,9 @@ import subprocess
 import time
 from pathlib import Path
 
-from .. import datos
+import numeros
+
+from .. import datos, formatos
 from . import perfil as perfiles
 from . import plan as planes
 
@@ -39,6 +41,14 @@ Criterios del oficio:
 - Música y acabado: elige lo que acompañe el tono de la marca; la voz manda siempre.
 - Plataforma: el texto va fuera de las franjas superior (14 %) e inferior (35 %) de la pantalla.
 - Marca: respeta su tono y todo lo que nunca debe aparecer.
+
+El brief de la persona es la instrucción principal: léelo entero y cumple todo lo que Iris puede hacer. Lo que Iris sabe construir:
+- Subtítulos palabra por palabra con palabras clave en grande, acercamientos, pasos numerados (solo si se dicen en voz alta), tarjetas con frases del video, gancho en pantalla y cierre con palabra clave.
+- Calculadora de dinero: muestra el precio, resta descuentos, suma extras y confirma el total con las cifras que se DICEN. Tú no escribes cifras: solo dices qué hace cada una (restar, sumar, total, mostrar) en «calculadora.ajustes», indicando el segundo en que se dice; el código lee las cifras y calcula.
+- Transiciones (destello, barrido, impacto) sobre los cortes reales entre escenas o pausas quitadas; tú eliges el estilo, no el instante.
+- Efectos de sonido sintetizados (ninguno, sutil, marcado), logo animado de la marca (cierre, intro o marca de agua), quitar pausas, música de la biblioteca y acabado de color.
+- Formato: dinero (calculadora), subtitulos, pasos o antes-despues. Elige el que mejor sirva al brief.
+Por cada cosa que pida el brief escribe una entrada en «requisitos»: el pedido con sus palabras, la capacidad de Iris que lo cubre y una nota breve. Si Iris no puede hacerlo, usa la capacidad «otra» y explica por qué en la nota; no prometas lo que no puedes construir.
 
 Reglas duras:
 - Usa SOLO hechos que estén en el guion hablado, el brief o la ficha. No inventes cifras, precios, nombres, plazos ni promesas. Si una cifra no se dice en el video, no la uses.
@@ -77,6 +87,11 @@ def guardar_ajustes(cambios: dict) -> None:
         actual["activa"] = bool(cambios["activa"])
     if "ver_fotogramas" in cambios:
         actual["ver_fotogramas"] = bool(cambios["ver_fotogramas"])
+    if "consentimiento" in cambios:  # la persona confirma qué datos se envían a Anthropic; queda la fecha
+        if cambios["consentimiento"]:
+            actual["consentimiento_ia"] = time.strftime("%Y-%m-%d")
+        else:
+            actual.pop("consentimiento_ia", None)
     if cambios.get("modelo") in MODELOS:
         actual["modelo"] = cambios["modelo"]
     destino = _archivo()
@@ -126,12 +141,18 @@ def estado_publico() -> dict:
     if origen is None and _credenciales_del_sdk():
         origen = "perfil"
     disponible = origen is not None or _fabrica is not None
+    consentida = bool(ajustes.get("consentimiento_ia"))
+    modelo = ajustes.get("modelo") if ajustes.get("modelo") in MODELOS else MODELO_POR_DEFECTO
     return {
         "disponible": disponible,
         "origen": origen,
         "final_clave": f"…{clave[-4:]}" if clave and origen == "archivo" else None,
-        "activa": bool(ajustes.get("activa", True)) and disponible,
-        "modelo": ajustes.get("modelo") if ajustes.get("modelo") in MODELOS else MODELO_POR_DEFECTO,
+        "consentida": consentida,
+        "consentida_en": ajustes.get("consentimiento_ia"),
+        "activa": bool(ajustes.get("activa", True)) and disponible and consentida,
+        "costo_estimado_usd": costo_estimado(modelo, *TOKENS_TIPICOS),
+        "gastado_mes_usd": gastado_en_el_mes(),
+        "modelo": modelo,
         "modelos": [{"id": k, "nombre": v["nombre"]} for k, v in MODELOS.items()],
         "ver_fotogramas": bool(ajustes.get("ver_fotogramas", False)),
     }
@@ -201,15 +222,26 @@ def texto_de_contexto(contexto: dict) -> str:
     musica = contexto.get("musica")
     referencia = contexto.get("referencia")
     config = contexto.get("config") or {}
+    nombres = {"calculadora": "calculadora de dinero", "transiciones": "transiciones", "sonidos": "efectos de sonido", "logo": "logo animado", "acercamientos": "acercamientos",
+               "contadores": "contadores de cifras", "cierre": "cierre con palabra clave", "quitar_pausas": "quitar pausas", "musica": "música"}
+    fijados = [f"{nombres[k]}: {'sí' if config[k] else 'no'}" for k in nombres if config.get(k) is not None and config.get("origenes", {}).get(k) in ("manual", "texto", "formato")]
+    cortes = contexto.get("cortes") or []
+    dichas = [c for c in numeros.encontrar(contexto.get("palabras", [])) if c["clase"] in ("dinero", "porcentaje")]
+    formato = formatos.FORMATOS.get(config.get("formato") or "auto", {}).get("nombre", "Automático")
+    segundos_cortes = ", ".join("%.1f" % c["t"] for c in cortes[:12])
     partes = [
-        f"Brief de la persona: {contexto.get('brief') or '(sin brief: decide con criterio profesional)'}",
+        f"Brief de la persona (instrucción principal): {contexto.get('brief') or '(sin brief: decide con criterio profesional)'}",
         f"Marca: {contexto.get('marca_nombre') or 'sin marca'}",
         "Ficha de la marca (memoria del equipo):\n" + (contexto.get("ficha") or "(sin ficha)")[:3000],
         "Preferencias del cliente (test del director):\n" + perfiles.a_texto(contexto.get("perfil")),
         f"Duración: {contexto.get('duracion')} s, {'vertical' if contexto.get('vertical', True) else 'horizontal'}",
-        "Piezas que la persona permite: " + ", ".join(
-            nombre for nombre, clave in (("acercamientos", "acercamientos"), ("contadores de cifras", "contadores"), ("cierre con palabra clave", "cierre")) if config.get(clave, True)) + ".",
+        f"Formato: {formato}" + (" (lo eligió la persona o su texto)" if config.get("formato_origen") in ("manual", "texto") else " (sin elegir: decide tú según el brief y lo que se dice)"),
+        f"Escenas unidas: {contexto.get('escenas', 1)}. " + ("Cortes reales donde caben transiciones (segundos): " + segundos_cortes + "." if cortes else "No hay cortes: las transiciones no tienen dónde ir."),
+        "Logo de la marca subido: " + ("sí" if contexto.get("tiene_logo") else "no (no propongas logo)"),
+        "Fijado por la persona o por su texto (respétalo): " + (", ".join(fijados) if fijados else "nada; decide tú") + ".",
     ]
+    if dichas:
+        partes.append("Cifras de dinero o porcentajes que se dicen (segundo, texto): " + "; ".join(f"[{c['ini']:.1f}] {c['texto']}" for c in dichas[:12]))
     if referencia:
         partes.append(f"Referencias elegidas: {referencia.get('ritmo')} cortes por cada 10 s, unas {referencia.get('ppm') or '?'} palabras por minuto.")
     if musica:
@@ -242,6 +274,20 @@ def construir_peticion(contexto: dict, modelo: str, imagenes: list[tuple[float, 
             "output_config": {"effort": "high", "format": {"type": "json_schema", "schema": planes.ESQUEMA}}}
 
 
+TOKENS_TIPICOS = (3500, 4500)  # lo que suele gastar un video de un minuto: sirve para mostrar el costo antes de crearlo
+
+
+def gastado_en_el_mes() -> float:
+    """Suma de lo que costaron (estimado) los videos dirigidos con IA este mes, para que nada de dinero sea una sorpresa."""
+    mes = time.strftime("%Y-%m")
+    total = 0.0
+    for fila in datos.todos("SELECT ia_info, actualizado FROM trabajos WHERE ia_info IS NOT NULL"):
+        info = fila["ia_info"] or {}
+        if info.get("costo_usd") and time.strftime("%Y-%m", time.localtime(fila["actualizado"] or 0)) == mes:
+            total += info["costo_usd"]
+    return round(total, 2)
+
+
 def costo_estimado(modelo: str, entrada: int, salida: int) -> float | None:
     precios = MODELOS.get(modelo)
     return round((entrada * precios["entrada"] + salida * precios["salida"]) / 1_000_000, 4) if precios else None
@@ -263,7 +309,12 @@ def generar_plan(contexto: dict, video: Path | None = None) -> dict:
     estado = estado_publico()
     resultado = {"plan": None, "origen": "reglas", "motivo": None, "advertencias": [], "modelo": None, "uso": None, "costo_usd": None}
     if not estado["activa"]:
-        resultado["motivo"] = None if not estado["disponible"] else "La IA está desactivada en los ajustes."
+        if not estado["disponible"]:
+            resultado["motivo"] = None
+        elif not estado["consentida"]:
+            resultado["motivo"] = "Falta confirmar qué datos se envían a la IA (menú de tu cuenta → Director con IA)."
+        else:
+            resultado["motivo"] = "La IA está desactivada en los ajustes."
         return resultado
     modelo = estado["modelo"]
     resultado["modelo"] = modelo

@@ -2,16 +2,17 @@
 import { api, ErrorApi, subir } from "./api.js";
 import { abrirAjustesIA } from "./ajustes_ia.js";
 import { abrirEntrevista } from "./entrevista.js";
+import { abrirLogo } from "./logo.js";
 import { crearSeccionMusica } from "./musica.js";
 import { crearTrabajo } from "./trabajo.js";
-import { anunciar, aviso, campoSimple, dialogo } from "./ui.js";
+import { anunciar, aviso, campoSimple, dialogo, pieLegal } from "./ui.js";
 import { el, esVideo, establecerProgreso, icono, iniciales, logo, poner } from "./util.js";
 
 const ACTIVOS = new Set(["en_cola", "trabajando"]);
 const CREABLES = new Set(["borrador", "error", "cancelado", "interrumpido"]);
 
 export function montarPanel(raiz, usuario, { alSalir }) {
-  const estado = { marcas: [], referencias: [], trabajos: [], musica: [], ia: { disponible: false, activa: false } };
+  const estado = { marcas: [], referencias: [], trabajos: [], musica: [], formatos: [], ia: { disponible: false, activa: false } };
   const tarjetasTrabajo = new Map();
   const tarjetasReferencia = new Map();
   const subiendo = new Map(); // subidas de referencias en curso (todavía sin registro en el servidor)
@@ -30,6 +31,8 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     el("button", { type: "button", role: "menuitem", datos: { accion: "director" } }, icono("director"), "Test del director…"),
     el("button", { type: "button", role: "menuitem", datos: { accion: "ia" } }, icono("varita"), "Director con IA…"),
     el("button", { type: "button", role: "menuitem", datos: { accion: "anadir" } }, icono("persona"), "Añadir a una persona"),
+    el("button", { type: "button", role: "menuitem", datos: { accion: "exportar" } }, icono("descargar"), "Exportar mis datos"),
+    el("button", { type: "button", role: "menuitem", datos: { accion: "legal" } }, icono("documento"), "Privacidad y términos"),
     el("button", { type: "button", role: "menuitem", datos: { accion: "salir" } }, icono("salir"), "Salir"),
     el("button", { type: "button", role: "menuitem", clase: "rojo", datos: { accion: "eliminar" } }, icono("papelera"), "Eliminar mi cuenta…"));
   const barra = el("header", { clase: "barra vidrio" },
@@ -71,7 +74,7 @@ export function montarPanel(raiz, usuario, { alSalir }) {
   const cabecera = el("div", { clase: "cabecera" },
     el("h1", { clase: "titulo-grande", texto: "Tus videos de marketing, listos sin editar." }),
     el("p", { texto: "Sube lo que grabaste, cuéntale a Iris cómo lo quieres y míralo construirse." }));
-  const principal = el("main", { id: "contenido", clase: "pagina" }, cabecera, seccionReferencias, seccionMusica, seccionTrabajos);
+  const principal = el("main", { id: "contenido", clase: "pagina" }, cabecera, seccionReferencias, seccionMusica, seccionTrabajos, pieLegal());
   poner(raiz, barra, principal);
 
   // ───────────────────────────────────────────────────────────── menú de cuenta
@@ -88,6 +91,14 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     if (boton.dataset.accion === "ia") abrirAjustesIA(() => refrescar()).catch((e) => aviso(e.message, { tipo: "error" }));
     if (boton.dataset.accion === "director") hacerTest();
     if (boton.dataset.accion === "eliminar") eliminarCuenta();
+    if (boton.dataset.accion === "exportar") {
+      const enlace = el("a", { href: "/api/cuenta/exportar", download: "mis-datos-iris.json" });
+      document.body.append(enlace);
+      enlace.click();
+      enlace.remove();
+      aviso("Descargando tus datos en un archivo que se puede leer (no incluye contraseñas ni claves).");
+    }
+    if (boton.dataset.accion === "legal") window.open("/legal/privacidad.html", "_blank", "noopener");
   });
 
   async function hacerTest(marcaInicial = "") {
@@ -114,13 +125,16 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     const nombre = campoSimple({ id: "nuevo-nombre", etiqueta: "Nombre", ejemplo: "Luis Gómez", autocompletar: "off" });
     const correo = campoSimple({ id: "nuevo-correo", etiqueta: "Correo", tipo: "email", ejemplo: "luis@empresa.com" });
     const clave = campoSimple({ id: "nueva-clave", etiqueta: "Contraseña inicial", tipo: "password", ejemplo: "Mínimo 8 caracteres", autocompletar: "new-password" });
+    const acepta = el("input", { type: "checkbox", id: "nueva-acepta" });
+    const consentimiento = el("div", { clase: "consentimiento" }, acepta, el("label", { for: "nueva-acepta" }, "Esta persona acepta los ",
+      el("a", { href: "/legal/terminos.html", target: "_blank", rel: "noopener", texto: "términos" }), " y la ", el("a", { href: "/legal/privacidad.html", target: "_blank", rel: "noopener", texto: "política de privacidad" }), "."));
     const resultado = await dialogo({
       titulo: "Añadir a una persona", texto: "Podrá entrar a Iris y ver las referencias y los videos de este equipo.",
-      cuerpo: el("div", { clase: "formulario" }, nombre.nodo, correo.nodo, clave.nodo),
+      cuerpo: el("div", { clase: "formulario" }, nombre.nodo, correo.nodo, clave.nodo, consentimiento),
       acciones: [{ texto: "Ahora no", valor: false }, { texto: "Añadir persona", valor: "ok", clase: "principal" }],
       alValidar: async () => {
         try {
-          await api.registro({ nombre: nombre.entrada.value.trim(), correo: correo.entrada.value.trim(), contrasena: clave.entrada.value });
+          await api.registro({ nombre: nombre.entrada.value.trim(), correo: correo.entrada.value.trim(), contrasena: clave.entrada.value, acepto: acepta.checked });
           return null;
         } catch (error) { return Object.values(error.campos)[0] || error.message; }
       },
@@ -132,11 +146,11 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     const clave = campoSimple({ id: "borrar-clave", etiqueta: "Escribe tu contraseña para confirmar", tipo: "password", autocompletar: "current-password" });
     const borrarTodo = el("input", { type: "checkbox", id: "borrar-todo" });
     const resultado = await dialogo({
-      titulo: "Eliminar mi cuenta", texto: "Tu cuenta se borra por completo y no se puede recuperar. Los videos del equipo se quedan, a menos que marques la casilla.",
-      cuerpo: el("div", { clase: "formulario" }, clave.nodo, el("div", { clase: "fila-recordar" }, el("label", { for: "borrar-todo", texto: "También borrar mis videos y referencias" }), el("span", { clase: "interruptor" }, borrarTodo, el("span")))),
+      titulo: "Eliminar mi cuenta", texto: "Tu cuenta se borra por completo y no se puede recuperar. Si quieres, borra también todos tus datos. Antes puedes descargar una copia con «Exportar mis datos».",
+      cuerpo: el("div", { clase: "formulario" }, clave.nodo, el("div", { clase: "fila-recordar" }, el("label", { for: "borrar-todo", texto: "También borrar todos mis datos: videos, referencias y música (y, si es la última cuenta, logos, test y clave de IA)" }), el("span", { clase: "interruptor" }, borrarTodo, el("span")))),
       acciones: [{ texto: "Cancelar", valor: false }, { texto: "Eliminar cuenta", valor: "ok", clase: "peligro-lleno" }],
       alValidar: async () => {
-        try { await api.eliminarCuenta({ contrasena: clave.entrada.value, borrar_trabajos: borrarTodo.checked }); return null; }
+        try { await api.eliminarCuenta({ contrasena: clave.entrada.value, borrar_todo: borrarTodo.checked }); return null; }
         catch (error) { return error.campos.contrasena || error.message; }
       },
     });
@@ -275,7 +289,12 @@ export function montarPanel(raiz, usuario, { alSalir }) {
   const contexto = {
     refrescar: () => refrescar(),
     ia: () => estado.ia,
+    formatos: () => estado.formatos,
     perfil: (marca) => hacerTest(marca || ""),
+    logo: (marcaId) => {
+      const m = estado.marcas.find((x) => x.id === marcaId);
+      return abrirLogo({ marca: marcaId, nombre: m?.nombre || "esta marca", tieneLogo: Boolean(m?.logo), alCambiar: async () => { estado.marcas = await api.marcas().catch(() => estado.marcas); await refrescar(); } });
+    },
     quitar: (id) => quitarConDeshacer("video", id, estado.trabajos.find((t) => t.id === id)?.titulo),
     crear: async (id) => { try { await api.crear(id); await refrescar(); } catch (error) { aviso(error.message, { tipo: "error" }); } },
   };
@@ -350,6 +369,7 @@ export function montarPanel(raiz, usuario, { alSalir }) {
       estado.trabajos = datos.trabajos;
       estado.musica = datos.musica || [];
       estado.ia = datos.ia || estado.ia;
+      estado.formatos = datos.formatos || estado.formatos;
       avisarCambios();
       pintar();
     } catch (error) {
@@ -364,9 +384,26 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     temporizador = setTimeout(async () => { if (!document.hidden) await refrescar(); programar(); }, trabajando ? 800 : 4000);
   }
 
+  async function pedirAceptacion() {
+    if (usuario.acepto !== false) return;
+    const acepta = el("input", { type: "checkbox", id: "acepta-textos" });
+    const cuerpo = el("div", { clase: "consentimiento" }, acepta, el("label", { for: "acepta-textos" }, "Acepto los ",
+      el("a", { href: "/legal/terminos.html", target: "_blank", rel: "noopener", texto: "términos y condiciones" }), " y la ", el("a", { href: "/legal/privacidad.html", target: "_blank", rel: "noopener", texto: "política de privacidad" }), "."));
+    const decision = await dialogo({
+      titulo: "Ahora Iris tiene textos legales", texto: "Explican qué guarda Iris, a quién llega y cómo borrarlo. Léelos y, si estás de acuerdo, acéptalos. Puedes seguir sin aceptar; te lo volveremos a preguntar.", cuerpo,
+      acciones: [{ texto: "Ahora no", valor: false }, { texto: "Aceptar", valor: "ok", clase: "principal" }],
+      alValidar: async () => { if (!acepta.checked) return "Marca la casilla para aceptar."; try { await api.aceptarTextos(); return null; } catch (error) { return error.message; } },
+    });
+    if (decision === "ok") usuario.acepto = true;
+  }
+
   (async () => {
     estado.marcas = await api.marcas().catch(() => []);
     await refrescar();
+    if (estado.ia.disponible && !estado.ia.consentida) {
+      aviso("Para dirigir con IA, confirma qué datos se envían a Anthropic. Hasta entonces Iris trabaja con reglas.", { duracion: 12000, accion: { texto: "Abrir", alHacer: () => abrirAjustesIA(() => refrescar()).catch((e) => aviso(e.message, { tipo: "error" })) } });
+    }
+    pedirAceptacion();
     if (estado.trabajos.length === 0) await nuevoTrabajo(false).catch(() => {});
     mostrarInvitacion();
     programar();

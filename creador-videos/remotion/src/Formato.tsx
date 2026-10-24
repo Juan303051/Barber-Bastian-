@@ -8,6 +8,9 @@ import { SubtitulosPalabras } from "./subtitulos";
 import { FPS, Marca, Props, fotogramas } from "./tipos";
 import { recurso, useUnidad } from "./util";
 
+/** Capas que ocupan todo el cuadro (se colocan solas): transiciones y logo animado. */
+const PANTALLA_COMPLETA = new Set<string>(["transicion", "logo"]);
+
 type BaseProps = { base: NonNullable<Props["base"]>; zooms: Props["zooms"]; silenciar: boolean; acabado: Props["acabado"]; pulso: Props["pulso"] };
 
 const BaseContinua = ({ base, zooms, silenciar, acabado, pulso }: BaseProps) => {
@@ -84,7 +87,7 @@ const Cuerpo = ({ props, marca, silenciarBase }: { props: Props; marca: Marca; s
           </Sequence>
         );
       })}
-      {(props.capas ?? []).map((capa, i) => (
+      {(props.capas ?? []).filter((c) => !PANTALLA_COMPLETA.has(c.tipo)).map((capa, i) => (
         <Sequence key={i} from={Math.round(capa.ini * fps)} durationInFrames={fotogramas(capa.fin - capa.ini, fps)}>
           <Colocada x={capa.x} y={capa.y}>
             <VistaCapa capa={capa} marca={marca} />
@@ -92,6 +95,11 @@ const Cuerpo = ({ props, marca, silenciarBase }: { props: Props; marca: Marca; s
         </Sequence>
       ))}
       {paginas.length > 0 && <SubtitulosPalabras paginas={paginas} marca={marca} estilo={props.estiloPalabras ?? {}} fps={fps} />}
+      {(props.capas ?? []).filter((c) => PANTALLA_COMPLETA.has(c.tipo)).map((capa, i) => (
+        <Sequence key={`completa-${i}`} from={Math.round(capa.ini * fps)} durationInFrames={fotogramas(capa.fin - capa.ini, fps)}>
+          <VistaCapa capa={capa} marca={marca} />
+        </Sequence>
+      ))}
       {props.subtitulos?.map((s, i) => (
         <Sequence key={i} from={Math.round(s.ini * fps)} durationInFrames={fotogramas(s.fin - s.ini, fps)}>
           <SubtituloFrase texto={s.texto} marca={marca} />
