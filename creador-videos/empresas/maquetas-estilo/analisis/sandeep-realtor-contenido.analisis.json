@@ -1,0 +1,409 @@
+{
+ "id": "sandeep-realtor-contenido",
+ "tipo": "referencia",
+ "archivo": "videos/referencias/sandeep-realtor-contenido.mp4",
+ "duracion": 19.2,
+ "ancho": 576,
+ "alto": 1024,
+ "fps": 30.0,
+ "vertical": true,
+ "ritmo": {
+  "n_cortes": 3,
+  "cortes": [
+   0.87,
+   4.9,
+   15.17
+  ],
+  "plano_medio": 4.8,
+  "plano_mediano": 4.03,
+  "cortes_por_10s": 1.56,
+  "primer_corte": 0.87,
+  "cortes_en_gancho": 1,
+  "curva_5s": [
+   2,
+   0,
+   0,
+   1
+  ]
+ },
+ "audio": {
+  "lufs": -13.5,
+  "rango_lu": 3.3,
+  "pico_db": 0.7,
+  "silencio_pct": 6.0
+ },
+ "voz": {
+  "idioma": "en",
+  "palabras_por_min": 188,
+  "gancho_texto": "How do you Realtor from GTA? What a level up in a real estate corner like the guys at states?",
+  "segmentos": [
+   {
+    "ini": 0.0,
+    "fin": 0.9,
+    "texto": "How do you Realtor from GTA?"
+   },
+   {
+    "ini": 1.3,
+    "fin": 3.5,
+    "texto": "What a level up in a real estate corner like the guys at states?"
+   },
+   {
+    "ini": 4.1,
+    "fin": 4.5,
+    "texto": "What's this?"
+   },
+   {
+    "ini": 4.7,
+    "fin": 6.5,
+    "texto": "Seller has an agent who's noticed."
+   },
+   {
+    "ini": 7.1,
+    "fin": 9.2,
+    "texto": "Because attention is the currency in this market."
+   },
+   {
+    "ini": 9.4,
+    "fin": 11.6,
+    "texto": "And we sell you the attention for the targeted buyer."
+   },
+   {
+    "ini": 11.9,
+    "fin": 15.0,
+    "texto": "So DM is right now to make your listing stand out from the crowd."
+   }
+  ],
+  "palabras": [
+   [
+    0.0,
+    0.06,
+    "How"
+   ],
+   [
+    0.06,
+    0.14,
+    "do"
+   ],
+   [
+    0.14,
+    0.22,
+    "you"
+   ],
+   [
+    0.22,
+    0.5,
+    "Realtor"
+   ],
+   [
+    0.5,
+    0.64,
+    "from"
+   ],
+   [
+    0.64,
+    0.92,
+    "GTA?"
+   ],
+   [
+    1.34,
+    1.46,
+    "What"
+   ],
+   [
+    1.46,
+    1.58,
+    "a"
+   ],
+   [
+    1.58,
+    1.76,
+    "level"
+   ],
+   [
+    1.76,
+    1.92,
+    "up"
+   ],
+   [
+    1.92,
+    2.02,
+    "in"
+   ],
+   [
+    2.02,
+    2.04,
+    "a"
+   ],
+   [
+    2.04,
+    2.16,
+    "real"
+   ],
+   [
+    2.16,
+    2.34,
+    "estate"
+   ],
+   [
+    2.34,
+    2.6,
+    "corner"
+   ],
+   [
+    2.6,
+    2.82,
+    "like"
+   ],
+   [
+    2.82,
+    2.92,
+    "the"
+   ],
+   [
+    2.92,
+    3.06,
+    "guys"
+   ],
+   [
+    3.06,
+    3.22,
+    "at"
+   ],
+   [
+    3.22,
+    3.5,
+    "states?"
+   ],
+   [
+    4.1,
+    4.36,
+    "What's"
+   ],
+   [
+    4.36,
+    4.46,
+    "this?"
+   ],
+   [
+    4.74,
+    5.0,
+    "Seller"
+   ],
+   [
+    5.0,
+    5.2,
+    "has"
+   ],
+   [
+    5.2,
+    5.42,
+    "an"
+   ],
+   [
+    5.42,
+    5.74,
+    "agent"
+   ],
+   [
+    5.74,
+    6.12,
+    "who's"
+   ],
+   [
+    6.12,
+    6.46,
+    "noticed."
+   ],
+   [
+    7.12,
+    7.24,
+    "Because"
+   ],
+   [
+    7.24,
+    7.66,
+    "attention"
+   ],
+   [
+    7.66,
+    7.94,
+    "is"
+   ],
+   [
+    7.94,
+    8.04,
+    "the"
+   ],
+   [
+    8.04,
+    8.4,
+    "currency"
+   ],
+   [
+    8.4,
+    8.78,
+    "in"
+   ],
+   [
+    8.78,
+    8.88,
+    "this"
+   ],
+   [
+    8.88,
+    9.2,
+    "market."
+   ],
+   [
+    9.42,
+    9.52,
+    "And"
+   ],
+   [
+    9.52,
+    9.76,
+    "we"
+   ],
+   [
+    9.76,
+    10.0,
+    "sell"
+   ],
+   [
+    10.0,
+    10.08,
+    "you"
+   ],
+   [
+    10.08,
+    10.18,
+    "the"
+   ],
+   [
+    10.18,
+    10.54,
+    "attention"
+   ],
+   [
+    10.54,
+    10.84,
+    "for"
+   ],
+   [
+    10.84,
+    10.92,
+    "the"
+   ],
+   [
+    10.92,
+    11.3,
+    "targeted"
+   ],
+   [
+    11.3,
+    11.58,
+    "buyer."
+   ],
+   [
+    11.92,
+    12.02,
+    "So"
+   ],
+   [
+    12.02,
+    12.22,
+    "DM"
+   ],
+   [
+    12.22,
+    12.42,
+    "is"
+   ],
+   [
+    12.42,
+    12.64,
+    "right"
+   ],
+   [
+    12.64,
+    12.86,
+    "now"
+   ],
+   [
+    12.86,
+    13.0,
+    "to"
+   ],
+   [
+    13.0,
+    13.24,
+    "make"
+   ],
+   [
+    13.24,
+    13.38,
+    "your"
+   ],
+   [
+    13.38,
+    13.66,
+    "listing"
+   ],
+   [
+    13.66,
+    14.0,
+    "stand"
+   ],
+   [
+    14.0,
+    14.26,
+    "out"
+   ],
+   [
+    14.26,
+    14.58,
+    "from"
+   ],
+   [
+    14.58,
+    14.74,
+    "the"
+   ],
+   [
+    14.74,
+    14.96,
+    "crowd."
+   ]
+  ]
+ },
+ "imagenes": {
+  "gancho": "gancho.jpg",
+  "hoja": "hoja.jpg",
+  "planos": [
+   {
+    "n": 1,
+    "ini": 0.0,
+    "fin": 0.87,
+    "imagen": "plano-01.jpg"
+   },
+   {
+    "n": 2,
+    "ini": 0.87,
+    "fin": 4.9,
+    "imagen": "plano-02.jpg"
+   },
+   {
+    "n": 3,
+    "ini": 4.9,
+    "fin": 15.17,
+    "imagen": "plano-03.jpg"
+   },
+   {
+    "n": 4,
+    "ini": 15.17,
+    "fin": 19.2,
+    "imagen": "plano-04.jpg"
+   }
+  ]
+ }
+}

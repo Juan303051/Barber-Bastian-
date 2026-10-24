@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+# Los videos pesan: se quedan en tu Mac. Lo que se sube al repo son las métricas, los informes y las hojas de fotogramas.
+empresas/*/videos/
+# Videos generados con Remotion y su carpeta de trabajo temporal.
+empresas/*/salidas/
+remotion/.cache/
+remotion/node_modules/
+# Obsidian guarda aquí el estado de tu ventana; solo se comparten sus dos ajustes de la bóveda.
+boveda/.obsidian/*
+!boveda/.obsidian/app.json
+!boveda/.obsidian/templates.json
+# Fotogramas generados de los videos. Pueden ser de otros creadores y el repositorio es público: no se suben salvo que tú lo decidas.
+boveda/02-empresas/*/medios/
+# Datos de la app Iris: cuentas, videos subidos y trabajos. Son privados y pesan: se quedan en tu equipo.
+app/datos/
