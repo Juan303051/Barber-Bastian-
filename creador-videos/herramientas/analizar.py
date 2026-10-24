@@ -75,15 +75,19 @@ def _audio(ruta: Path, duracion: float) -> dict | None:
     }
 
 
-def _voz(ruta: Path, duracion: float, modelo: str) -> dict | None:
+def _voz(ruta: Path, duracion: float, modelo: str, avance=None, idioma: str | None = None) -> dict | None:
     if _whisper["fallo"]:
         return None
     try:
         if _whisper["modelo"] is None:
             from faster_whisper import WhisperModel
             _whisper["modelo"] = WhisperModel(modelo, compute_type="int8")
-        segmentos, info = _whisper["modelo"].transcribe(str(ruta), vad_filter=True, word_timestamps=True)
-        segmentos = list(segmentos)
+        generador, info = _whisper["modelo"].transcribe(str(ruta), vad_filter=True, word_timestamps=True, language=idioma)
+        segmentos = []
+        for segmento in generador:  # se recorre uno a uno para poder avisar del avance
+            segmentos.append(segmento)
+            if avance and duracion:
+                avance(min(1.0, segmento.end / duracion))
         palabras = [[round(w.start, 2), round(w.end, 2), w.word.strip()] for s in segmentos for w in (s.words or [])]
         segmentos = [{"ini": round(s.start, 1), "fin": round(s.end, 1), "texto": s.text.strip()}
                      for s in segmentos]
@@ -104,7 +108,7 @@ def _voz(ruta: Path, duracion: float, modelo: str) -> dict | None:
 MAX_PLANOS = 80
 
 
-def _imagenes(ruta: Path, datos: dict, medios: Path, cortes: list[float]) -> dict:
+def _imagenes(ruta: Path, datos: dict, medios: Path, cortes: list[float], con_planos: bool = True) -> dict:
     """Guarda en la bóveda tres cosas: el gancho, una hoja del video entero y un fotograma por plano."""
     medios.mkdir(parents=True, exist_ok=True)
     ancho = 180 if datos["alto"] > datos["ancho"] else 320
@@ -119,7 +123,7 @@ def _imagenes(ruta: Path, datos: dict, medios: Path, cortes: list[float]) -> dic
     # Un fotograma por plano, tomado poco después de que empieza.
     limites = [0.0] + cortes + [duracion]
     planos = []
-    for n, (ini, fin) in enumerate(list(zip(limites, limites[1:]))[:MAX_PLANOS], start=1):
+    for n, (ini, fin) in enumerate(list(zip(limites, limites[1:]))[:MAX_PLANOS if con_planos else 0], start=1):
         if fin <= ini:
             continue
         archivo = f"plano-{n:02d}.jpg"
@@ -130,7 +134,7 @@ def _imagenes(ruta: Path, datos: dict, medios: Path, cortes: list[float]) -> dic
 
 
 def medir_video(ruta: Path, etiqueta: str, archivo: str, umbral: float, con_voz: bool, modelo_voz: str,
-                medios: Path) -> dict | None:
+                medios: Path, con_planos: bool = True, avance=None, idioma: str | None = None) -> dict | None:
     """Todas las medidas de un video; None si no se puede leer."""
     datos = _sondear(ruta)
     if not datos["duracion"]:
@@ -144,8 +148,8 @@ def medir_video(ruta: Path, etiqueta: str, archivo: str, umbral: float, con_voz:
         "vertical": datos["alto"] > datos["ancho"],
         "ritmo": _ritmo(cortes, datos["duracion"]),
         "audio": _audio(ruta, datos["duracion"]) if datos["tiene_audio"] else None,
-        "voz": _voz(ruta, datos["duracion"], modelo_voz) if con_voz and datos["tiene_audio"] else None,
-        "imagenes": _imagenes(ruta, datos, medios, cortes),
+        "voz": _voz(ruta, datos["duracion"], modelo_voz, avance, idioma) if con_voz and datos["tiene_audio"] else None,
+        "imagenes": _imagenes(ruta, datos, medios, cortes, con_planos),
     }
 
 

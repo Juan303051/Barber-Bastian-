@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from comun import EMPRESAS, RAIZ, nombre
+from comun import EMPRESAS, RAIZ, corto, nombre
 from guion import completar, recursos, revisar
 
 REMOTION = RAIZ / "remotion"
@@ -25,21 +25,21 @@ def _guion(carpeta: Path, indicado: str) -> Path:
     raise SystemExit(f"No encuentro el guion '{indicado}'. En {carpeta.name}/formatos hay: {', '.join(disponibles) or 'ninguno'}")
 
 
-def preparar(carpeta: Path, indicado: str) -> tuple[Path, Path, Path]:
+def preparar(carpeta: Path, indicado: str, cache: Path = CACHE) -> tuple[Path, Path, Path]:
     """Devuelve (props.json, carpeta pública, guion). Solo incluye los archivos que el guion usa."""
     guion = _guion(carpeta, indicado)
     props = json.loads(guion.read_text(encoding="utf-8"))
     ficha = carpeta / "marca.json"
     props["marca"] = {"nombre": nombre(carpeta)} | (json.loads(ficha.read_text(encoding="utf-8")) if ficha.exists() else {}) | props.get("marca", {})
     if not ficha.exists():
-        print(f"  (sin {ficha.relative_to(RAIZ)}: uso colores y fuente por defecto)")
+        print(f"  (sin {corto(ficha)}: uso colores y fuente por defecto)")
     props.setdefault("escenas", [])
     completar(props)
     errores = revisar(props)
     if errores:
         raise SystemExit(f"El guion {guion.name} tiene problemas:\n  - " + "\n  - ".join(errores))
 
-    publica = CACHE / "publico"
+    publica = cache / "publico"
     shutil.rmtree(publica, ignore_errors=True)
     faltan = []
     for ruta in recursos(props):
@@ -57,7 +57,7 @@ def preparar(carpeta: Path, indicado: str) -> tuple[Path, Path, Path]:
         raise SystemExit("Faltan archivos (rutas relativas a empresas/):\n  " + "\n  ".join(faltan))
     publica.mkdir(parents=True, exist_ok=True)
 
-    archivo = CACHE / "props.json"
+    archivo = cache / "props.json"
     archivo.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
     return archivo, publica, guion
 
@@ -79,7 +79,7 @@ def render(carpeta: Path, indicado: str, salida: Path | None = None, capturar: b
     resultado = _remotion(["render", "src/index.ts", "Formato", str(salida),
                            f"--props={props}", f"--public-dir={publica}"], capturar)
     if resultado.returncode == 0 and not capturar:
-        print(f"\n  video: {salida.relative_to(RAIZ)}")
+        print(f"\n  video: {corto(salida)}")
     return resultado
 
 

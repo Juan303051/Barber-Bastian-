@@ -1,16 +1,17 @@
-"""Punto de entrada: ./creador preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
+"""Punto de entrada: ./creador app | cuenta | preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
 from __future__ import annotations
 
 import argparse
 import sys
 
-from comun import asegurar_carpetas, empresas, nombre
+from comun import RAIZ, asegurar_carpetas, empresas, nombre
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
+    ap.add_argument("accion", choices=["app", "cuenta", "preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
     ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json; guion: nombre del archivo de video")
+    ap.add_argument("segundo", nargs="?", help="cuenta: el correo (./creador cuenta restablecer tu@correo.com)")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
     ap.add_argument("--solo-metadatos", action="store_true", help="descargar: solo vistas, likes y textos, sin el video")
     ap.add_argument("--cookies-navegador", metavar="NAVEGADOR", help="descargar: safari, chrome, firefox… (para videos que piden sesión)")
@@ -21,10 +22,16 @@ def main() -> int:
     ap.add_argument("--modelo-voz", default="base", help="analizar: tiny, base, small, medium")
     ap.add_argument("--diseno", choices=["pleno", "antes-despues"], default="antes-despues", help="guion: diseño del borrador")
     ap.add_argument("--nombre", help="guion: nombre del guion (por defecto, el del video)")
+    ap.add_argument("--sin-navegador", action="store_true", help="app: no abrir el navegador al iniciar")
     ap.add_argument("--rapido", action="store_true", help="probar: omite la prueba de Remotion (la más lenta)")
     ap.add_argument("--forzar", action="store_true", help="analizar: rehacer lo ya analizado; guion: reemplazar un guion que ya existe")
     a = ap.parse_args()
     asegurar_carpetas()
+
+    if a.accion in ("app", "cuenta"):
+        sys.path.insert(0, str(RAIZ / "app"))
+        from servidor import arranque
+        return arranque.iniciar(not a.sin_navegador) if a.accion == "app" else arranque.cuentas(a.guion, a.segundo)
 
     if a.accion == "preparar":
         print("Carpetas listas: en cada empresa ya puedes soltar videos en videos/referencias/ y videos/propios/.")

@@ -5,6 +5,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -42,7 +43,8 @@ def _entorno(r: Resultado) -> None:
         r.paso(programa, shutil.which(programa) is not None, shutil.which(programa) or "",
                "brew install ffmpeg")
     for modulo, nombre in (("yt_dlp", "yt-dlp (descargas)"), ("faster_whisper", "faster-whisper (voz a texto)"),
-                           ("yaml", "PyYAML (propiedades de las notas)")):
+                           ("yaml", "PyYAML (propiedades de las notas)"),
+                           ("fastapi", "FastAPI (la app Iris)"), ("uvicorn", "Uvicorn (servidor de la app Iris)")):
         r.paso(nombre, importlib.util.find_spec(modulo) is not None, "", "ejecuta ./instalar.sh")
     for programa in ("node", "npx"):
         r.paso(f"{programa} (Remotion)", shutil.which(programa) is not None, shutil.which(programa) or "",
@@ -178,6 +180,22 @@ def _remotion(r: Resultado, temporal: Path) -> None:
         r.paso("el video mide 360×640 y dura 1.6 s", "360,640,1.6" in sonda.stdout, sonda.stdout.strip().replace("\n", " "), "")
 
 
+def _app(r: Resultado, completo: bool) -> None:
+    print("\n7. App Iris: piezas, cuentas, seguridad, subida" + (" y un video completo" if completo else "") + " (todo en una carpeta temporal)")
+    faltan = [m for m in ("fastapi", "uvicorn", "httpx") if importlib.util.find_spec(m) is None]
+    if faltan:
+        r.paso("componentes de la app", False, ", ".join(faltan), "ejecuta ./instalar.sh")
+        return
+    entorno = {**os.environ, "PYTHONPATH": str(RAIZ / "herramientas")}
+    pruebas = (("piezas de la app (interprete, pausas, estilo, seguridad)", ["-m", "servidor.pruebas"]),
+               ("la app de punta a punta", ["-m", "servidor.pruebas_api", *(["--completo"] if completo else [])]))
+    for titulo, argumentos in pruebas:
+        resultado = subprocess.run([sys.executable, *argumentos], cwd=RAIZ / "app", env=entorno, capture_output=True, text=True)
+        malas = [l.strip() for l in resultado.stdout.splitlines() if "✗" in l] or [_cola(resultado.stderr or resultado.stdout)]
+        r.paso(titulo, resultado.returncode == 0, "" if resultado.returncode == 0 else " · ".join(malas),
+               "si falla algo, es un error del programa: mándame este mensaje")
+
+
 def probar(rapido: bool) -> int:
     print("Autodiagnóstico de Creador de videos")
     r = Resultado()
@@ -197,5 +215,6 @@ def probar(rapido: bool) -> int:
             _remotion(r, temporal)
         else:
             print("\n6. Remotion: omitido porque no está instalado")
+        _app(r, completo=not rapido and (RAIZ / "remotion" / "node_modules").exists() and shutil.which("npx") is not None)
     print("\n" + ("Todo en orden." if r.fallos == 0 else f"{r.fallos} comprobaciones fallaron: arregla la primera y repite ./creador probar."))
     return 1 if r.fallos else 0

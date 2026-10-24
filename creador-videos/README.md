@@ -27,6 +27,8 @@ Dentro de `empresas/<empresa>/`:
 ## Uso
 ```bash
 ./instalar.sh                          # una sola vez
+./creador app                          # la app de una sola pantalla (abre el navegador; deja la Terminal abierta)
+./creador cuenta restablecer ana@correo.com   # si olvidaste la contraseña de la app (./creador cuenta lista muestra las cuentas)
 ./creador probar                       # autodiagnóstico: dice si todo funciona y cómo arreglar lo que no (--rapido omite Remotion)
 ./creador preparar                     # crea las carpetas donde soltar videos (también lo hace cada comando)
 ./creador todo                         # descarga, analiza, escribe las notas en la bóveda y la revisa
@@ -38,6 +40,22 @@ Dentro de `empresas/<empresa>/`:
 ./creador validar                      # revisa la bóveda: enlaces rotos, empresas mezcladas, videos dentro, notas sin propiedades
 ```
 Después sube los resultados para que Claude los lea: `git add -A && git commit -m "Nuevas referencias" && git push`. Para recibir lo que Claude escribió: `git pull`.
+
+## La app Iris (una sola pantalla)
+```bash
+./creador app        # abre http://127.0.0.1:8765; mientras trabajes, la ventana de la Terminal debe seguir abierta (Control + C la cierra)
+```
+Una pantalla con dos partes: **1. Referencias** (sueltas videos que te gustan o pegas un enlace; Iris mide su ritmo y su voz) y **2. Tus videos** (todos los que necesites: subes la toma, escribes qué quieres y pulsas Crear). Mientras se crea, la tarjeta del video muestra **el video construyéndose fotograma a fotograma**, las etapas, el avance y el tiempo que falta. Al terminar, se ve y se descarga. Diseño: Human Interface Guidelines de Apple con paleta arcoíris (investigación: `boveda/01-conocimiento/investigacion/diseno-apple-hig.md`).
+
+| Tema | Cómo funciona |
+|---|---|
+| Lo que escribes | **Reglas, no inteligencia artificial.** Entiende palabras en grande, cierre «comenta PALABRA», subtítulos arriba/centro/abajo, antes y después, quitar pausas y color. Lo que no sabe hacer (música, transiciones, efectos de sonido, texto detrás de la persona, recorte exacto, logo) lo dice como pendiente en «Esto entendí». Los interruptores mandan sobre el texto |
+| Lo que detecta solo | Desde la voz: pasos numerados («primero, segundo…»), cifras con contador, palabra del cierre y acercamientos. De las referencias activas: palabras por pantalla y frecuencia de acercamientos; su color solo si activas esa opción |
+| Resultado | Siempre es un **borrador que tú revisas**. «Borrador rápido» lo hace a mitad de tamaño para probar |
+| Cuentas | La primera se crea al abrir; desde el menú de tu avatar añades a más personas (todas ven el mismo panel de equipo). Una contraseña olvidada se restablece con `./creador cuenta restablecer` |
+| Seguridad | Solo escucha en `127.0.0.1` (nadie de tu red entra); contraseñas con scrypt; sesión en cookie `HttpOnly` y `SameSite=Strict`; bloqueo tras 5 intentos fallidos durante 15 min; comprobación de `Host` y `Origin`; política de contenido estricta (sin código ajeno); ninguna clave de servicios en el navegador; los videos no salen del equipo |
+| Datos | `app/datos/` (cuentas, trabajos, subidas; no se sube al repositorio). El video terminado también queda en `empresas/<marca>/salidas/`. Variables: `IRIS_DATOS` (otra carpeta), `IRIS_MODELO_VOZ` (`small` por defecto), `IRIS_MAX_GB` (tamaño máximo por subida, 4) y `CREADOR_NAVEGADOR` |
+| Límites | Un video a la vez (los demás esperan en cola); hasta 45 minutos por video; si se cierra la app a mitad, el video queda «interrumpido» y se vuelve a crear con un clic |
 
 ## La bóveda en Obsidian
 1. Abre Obsidian → *Abrir carpeta como bóveda* → `creador-videos/boveda`.
@@ -104,8 +122,9 @@ Todas las rutas de archivos son relativas a `empresas/` (p. ej. `al-volante/vide
 4. Texto detrás de la persona con un modelo de recorte (por probar); el texto pegado al suelo seguirá siendo manual.
 5. Cargar tus estadísticas en la bóveda y comparar contra las referencias.
 6. Pruebas automáticas en cada cambio (hoy el autodiagnóstico se ejecuta a mano con `./creador probar`).
+7. App: entender instrucciones libres con un modelo de lenguaje (se haría desde el servidor, nunca con claves en el navegador), música y transiciones, acceso con passkey o verificación en dos pasos, y empaquetarla como app de Mac (hoy se abre en el navegador).
 
-**Sin probar en un Mac** (solo se probó en Linux): `instalar.sh`, la descarga real de referencias, `estudio`, abrir la bóveda en Obsidian y la velocidad de la transcripción.
+**Sin probar en un Mac** (solo se probó en Linux): `instalar.sh`, la descarga real de referencias, `estudio`, abrir la bóveda en Obsidian, la velocidad de la transcripción y la app Iris en Safari (`./creador app`, soltar archivos desde Finder, reproducir el resultado).
 
 **«Sin ningún error» no se puede prometer.** Lo que sí hay: autodiagnóstico (`probar`), validador de la bóveda, escritura que no deja archivos a medias y notas generadas que nunca pisan las escritas a mano. Las descargas de YouTube, TikTok e Instagram pueden fallar cuando esas redes cambian; se arregla actualizando `yt-dlp`.
 
@@ -115,4 +134,5 @@ Todas las rutas de archivos son relativas a `empresas/` (p. ej. `al-volante/vide
 - Remotion es gratis para personas y empresas con hasta 3 empleados; una empresa mayor necesita licencia (remotion.pro).
 - Los videos ajenos son referencia para estudiar estructura, no material para republicar.
 - Los cortes se miden sobre el cuadro completo: en pantallas divididas o tomas continuas con gráficos encima el cambio real está en las capas y la cifra de cortes queda baja.
+- App Iris, verificada en Linux con Chromium: cuentas, bloqueo por intentos, subida, interpretación del texto, un video creado de punta a punta (con y sin voz) con sus fotogramas en vivo, cancelación, escritorio y móvil, claro y oscuro, y una auditoría de accesibilidad automática sin fallos. Safari y un revisor humano de accesibilidad (VoiceOver) quedan sin probar.
 - Verificado en Linux (no en Mac): autodiagnóstico completo, análisis y transcripción con 4 videos reales en español e inglés, notas e informes en la bóveda, validador con fallos provocados a propósito, instalación desde cero en una copia limpia, lectura de metadatos de YouTube y render con Remotion (escenas, clips, subtítulos, logo, audio).

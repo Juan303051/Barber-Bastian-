@@ -72,6 +72,8 @@ def revisar(props: dict) -> list[str]:
             errores.append(f"{donde}: 'tipo' debe ser uno de: {', '.join(sorted(ESCENAS))}")
         if not _numero(e.get("duracion")) or e["duracion"] <= 0:
             errores.append(f"{donde}: 'duracion' debe ser un número de segundos mayor que 0")
+        if e.get("ini") is not None and (not _numero(e["ini"]) or e["ini"] < 0):
+            errores.append(f"{donde}: 'ini' debe ser un segundo mayor o igual que 0")
         for f in e.get("focos", []):
             faltan = [k for k in ("x", "y", "ancho", "alto", "ini", "fin") if not _numero(f.get(k))]
             if faltan:
@@ -79,8 +81,9 @@ def revisar(props: dict) -> list[str]:
         if e.get("zoom") is not None and not all(_numero(e["zoom"].get(k)) for k in ("escala", "x", "y")):
             errores.append(f"{donde}: 'zoom' necesita escala, x e y")
 
-    total = props.get("duracion") if _numero(props.get("duracion")) else sum(
-        e["duracion"] for e in escenas if _numero(e.get("duracion")))
+    total = props.get("duracion") if _numero(props.get("duracion")) else max(
+        [sum(e["duracion"] for e in escenas if _numero(e.get("duracion")) and e.get("ini") is None)]
+        + [e["ini"] + e["duracion"] for e in escenas if _numero(e.get("ini")) and _numero(e.get("duracion"))])
     for i, c in enumerate(props.get("capas", []), 1):
         donde = f"capa {i} ({c.get('tipo')})"
         if c.get("tipo") not in CAPAS:

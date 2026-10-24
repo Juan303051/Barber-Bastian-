@@ -86,3 +86,28 @@ def descargar(carpeta: Path, solo_metadatos: bool, cookies_navegador: str | None
         print(f"\n{nombre(carpeta)}: {fallos} fallaron. Si pide iniciar sesión, repite con "
               "--cookies-navegador safari (o chrome); si el video es privado, ponlo a mano en videos/.")
     return fallos
+
+
+def bajar_uno(url: str, destino: Path, cookies_navegador: str | None = None, extractor_args: str | None = None) -> tuple[dict, Path]:
+    """Descarga un solo video en `destino` y devuelve sus métricas públicas y el archivo."""
+    from yt_dlp import YoutubeDL
+
+    opciones = {
+        "format": "bv*[height<=1080]+ba/b[height<=1080]/b",
+        "merge_output_format": "mp4",
+        "outtmpl": str(destino / "%(extractor_key)s-%(id)s.%(ext)s"),
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "playlistend": 1,
+        "extractor_args": _extractor_args(extractor_args),
+    }
+    if cookies_navegador:
+        opciones["cookiesfrombrowser"] = (cookies_navegador,)
+    with YoutubeDL(opciones) as ydl:
+        info = ydl.extract_info(url, download=True)
+        if info.get("entries"):
+            info = next(e for e in info["entries"] if e)
+        descargados = info.get("requested_downloads") or []
+        ruta = Path(descargados[0]["filepath"]) if descargados else Path(ydl.prepare_filename(info))
+    return _meta(info, "referencias"), ruta

@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
-EMPRESAS = RAIZ / "empresas"
+EMPRESAS = Path(os.environ.get("CREADOR_EMPRESAS") or RAIZ / "empresas")
 BOVEDA = Path(os.environ.get("CREADOR_BOVEDA") or RAIZ / "boveda")
 EXTENSIONES = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
 TIPOS = {"referencias": "referencia", "propios": "propio"}
@@ -21,6 +21,14 @@ def empresas(filtro: str | None = None) -> list[Path]:
             raise SystemExit(f"No existe la empresa '{filtro}'. Opciones: {', '.join(p.name for p in carpetas)}")
         return elegidas
     return carpetas
+
+
+def corto(ruta: Path) -> str:
+    """Ruta relativa a la carpeta del proyecto para mostrarla; si está fuera (pruebas), la ruta completa."""
+    try:
+        return str(ruta.relative_to(RAIZ))
+    except ValueError:
+        return str(ruta)
 
 
 def seguro(texto: str) -> str:

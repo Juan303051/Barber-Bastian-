@@ -59,7 +59,7 @@ const Cuerpo = ({ props, marca, silenciarBase }: { props: Props; marca: Marca; s
     >
       {props.base && <BaseContinua base={props.base} zooms={props.zooms} silenciar={silenciarBase || (props.base.silenciar ?? false)} />}
       <Series>
-        {(props.escenas ?? []).map((escena, i) => {
+        {(props.escenas ?? []).filter((e) => e.ini === undefined).map((escena, i) => {
           const duracion = fotogramas(escena.duracion, fps);
           return (
             <Series.Sequence key={i} durationInFrames={duracion}>
@@ -68,6 +68,14 @@ const Cuerpo = ({ props, marca, silenciarBase }: { props: Props; marca: Marca; s
           );
         })}
       </Series>
+      {(props.escenas ?? []).filter((e) => e.ini !== undefined).map((escena, i) => {
+        const duracion = fotogramas(escena.duracion, fps);
+        return (
+          <Sequence key={`colocada-${i}`} from={Math.round((escena.ini ?? 0) * fps)} durationInFrames={duracion}>
+            <VistaEscena escena={escena} marca={marca} duracion={duracion} hayBase={props.base !== undefined} />
+          </Sequence>
+        );
+      })}
       {(props.capas ?? []).map((capa, i) => (
         <Sequence key={i} from={Math.round(capa.ini * fps)} durationInFrames={fotogramas(capa.fin - capa.ini, fps)}>
           <Colocada x={capa.x} y={capa.y}>

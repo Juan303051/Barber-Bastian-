@@ -29,6 +29,8 @@ export type Escena = {
   tipo: "gancho" | "contenido" | "cta" | "pantalla";
   /** Segundos. */
   duracion: number;
+  /** Segundo del video en el que empieza. Sin esto, la escena empieza cuando termina la anterior. */
+  ini?: number;
   texto?: string;
   /** Solo en `cta`: palabra que el público debe comentar, p. ej. "EDITOR". */
   clave?: string;
@@ -124,7 +126,11 @@ export const fotogramas = (segundos: number, fps: number) => Math.max(1, Math.ro
 export const duracionTotal = (props: Props, fps: number) =>
   Math.max(1, calcularDuracion(props, fps));
 
-const calcularDuracion = (props: Props, fps: number) =>
-  props.duracion !== undefined
-    ? fotogramas(props.duracion, fps)
-    : (props.escenas ?? []).reduce((total, e) => total + fotogramas(e.duracion, fps), 0);
+/** Con `duracion` manda ella; si no, el final de la última escena (las que tienen `ini` se colocan en su segundo exacto). */
+const calcularDuracion = (props: Props, fps: number) => {
+  if (props.duracion !== undefined) return fotogramas(props.duracion, fps);
+  const escenas = props.escenas ?? [];
+  const seguidas = escenas.filter((e) => e.ini === undefined).reduce((total, e) => total + fotogramas(e.duracion, fps), 0);
+  const colocadas = escenas.filter((e) => e.ini !== undefined).map((e) => Math.round((e.ini ?? 0) * fps) + fotogramas(e.duracion, fps));
+  return Math.max(seguidas, ...colocadas);
+};

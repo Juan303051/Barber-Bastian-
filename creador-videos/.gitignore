@@ -12,3 +12,5 @@ boveda/.obsidian/*
 !boveda/.obsidian/templates.json
 # Fotogramas generados de los videos. Pueden ser de otros creadores y el repositorio es público: no se suben salvo que tú lo decidas.
 boveda/02-empresas/*/medios/
+# Datos de la app Iris: cuentas, videos subidos y trabajos. Son privados y pesan: se quedan en tu equipo.
+app/datos/

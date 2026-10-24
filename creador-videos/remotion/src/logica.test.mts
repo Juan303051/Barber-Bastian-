@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { duracionPagina, formatearNumero, limpiar, normalizar, paginar, trayecto, valorContador, zoomEn } from "./logica.ts";
-import type { PalabraT } from "./tipos.ts";
+import { duracionTotal } from "./tipos.ts";
+import type { PalabraT, Props } from "./tipos.ts";
 
 const casi = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
 
@@ -64,5 +65,12 @@ assert.ok(zoomEn(1.1, [{ ini: 1, fin: 3, escala: 1.4 }]).escala < 1.4);
 // Trazados SVG.
 assert.match(trayecto("arco", 1000, 400), /^M /);
 assert.match(trayecto("onda", 1000, 400), /^M /);
+
+// Duración: con `duracion` manda ella; si no, las escenas seguidas suman y las colocadas llegan hasta su final.
+const base: Props = { formato: "x" };
+assert.equal(duracionTotal({ ...base, duracion: 5 }, 30), 150);
+assert.equal(duracionTotal({ ...base, escenas: [{ tipo: "gancho", duracion: 2 }, { tipo: "cta", duracion: 1 }] }, 30), 90);
+assert.equal(duracionTotal({ ...base, escenas: [{ tipo: "gancho", duracion: 2 }, { tipo: "cta", duracion: 3, ini: 4 }] }, 30), 210);
+assert.equal(duracionTotal(base, 30), 1);
 
 console.log("logica.test.mts: todo en orden");

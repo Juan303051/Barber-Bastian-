@@ -9,4 +9,5 @@ Sistema para seis empresas (Mundial de Motos, Masa Motos, Cositas Chulas Kids, A
 - **No tocar notas con `generado: true` a mano:** se reescriben con `./creador informe`. La lectura va en `analisis/`.
 - **Lo que no se puede hacer desde la nube:** descargar videos de YouTube, TikTok o Instagram (bloquean la IP) ni acceder al computador del usuario. Los videos se analizan en el Mac del usuario o llegan por el chat; los archivos de video nunca se suben al repositorio.
 - **Videos de otros creadores:** solo para estudiar estructura y técnica. No republicar, no quitar marcas de agua.
+- **App Iris (`app/`).** Interfaz en español claro, sin claves de servicios en el navegador, solo escucha en `127.0.0.1` y los datos viven en `app/datos/` (no se sube). Todo cambio en `app/` se comprueba con `./creador probar` y, si toca la pantalla, abriéndola en un navegador real; los videos que crea son borradores que la persona revisa.
 - **Estado de verificación:** decir siempre qué se probó en Linux y qué falta por probar en el Mac del usuario.
