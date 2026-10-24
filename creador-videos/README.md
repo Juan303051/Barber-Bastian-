@@ -48,23 +48,37 @@ Después sube los resultados para que Claude los lea: `git add -A && git commit 
 El software **solo reescribe las notas marcadas `generado: true`** y se niega a tocar cualquier otra; escribe en un temporal y lo renombra, así que un corte a mitad no deja archivos a medias.
 
 ## Hacer videos con Remotion
-[Remotion](https://www.remotion.dev) convierte un guion JSON en un video vertical 1080×1920 con la identidad de la empresa. Los formatos que salgan del análisis se guardan como guiones en `empresas/<empresa>/formatos/`.
-```bash
-./creador render ejemplo --empresa al-volante                  # guion en empresas/al-volante/formatos/ejemplo.json
-./creador render remotion/ejemplo.json --empresa al-volante    # o una ruta; este ejemplo no necesita clips
-./creador estudio ejemplo --empresa al-volante                 # previsualizar y ajustar en el navegador
-```
-El video queda en `empresas/<empresa>/salidas/<formato>.mp4`. Un guion se ve así (ver `remotion/ejemplo.json`):
+[Remotion](https://www.remotion.dev) convierte un guion JSON en un video vertical 1080×1920 con la identidad de la empresa y las piezas del estilo de las maquetas (`boveda/01-conocimiento/tecnicas/estilo-cinetico-sobre-escena.md`). Los guiones viven en `empresas/<empresa>/formatos/`.
 
-| Campo | Qué es |
+**De una toma en bruto a un video:**
+```bash
+# 1. Pon la toma en empresas/<empresa>/videos/propios/ y analízala (incluye la transcripción)
+./creador analizar --empresa al-volante
+# 2. Crea el guion borrador: subtítulos palabra por palabra y un acercamiento en una de cada dos frases
+./creador guion toma1.mp4 --empresa al-volante                      # --diseno pleno para un solo cuadro; --nombre otro
+# 3. Edítalo (palabras clave, capas, correcciones) y genera el video
+./creador render toma1 --empresa al-volante                         # queda en empresas/al-volante/salidas/toma1.mp4
+./creador estudio toma1 --empresa al-volante                        # o ajústalo viendo el resultado en el navegador
+```
+`./creador guion` no pisa un guion que ya existe (puede tener tus cambios). Ejemplos que funcionan sin tomas (`./creador render remotion/ejemplos/<nombre>.json --empresa al-volante`): `estilo-completo` (gancho, contador, insignias, palabra gigante, tarjeta y cierre con palabra clave), `elementos` (mira, texto curvo, tarjetas), `antes-despues` y `tutorial-pantalla`. Antes de renderizar, el guion se revisa y los errores salen en claro (qué escena, qué campo).
+
+| Campo del guion | Qué es |
 |---|---|
 | `formato` | Nombre del video de salida |
-| `escenas[]` | `tipo`: `gancho` (texto enorme), `contenido` (toma con texto abajo) o `cta` (cierre con logo y usuario) · `duracion` en segundos · `texto` · `clip` y `desde` (ruta relativa a `empresas/`, p. ej. `al-volante/videos/propios/toma1.mp4`) · `silenciar` |
-| `subtitulos[]` | `ini`, `fin` (segundos) y `texto` |
-| `voz`, `musica` | Audio de locución y música (`archivo`, `volumen`), rutas relativas a `empresas/` |
+| `diseno` | `pleno` (por defecto) o `antes-despues`: la toma cruda pequeña a la izquierda y la editada grande a la derecha |
+| `base` | Toma continua `{ clip, desde, silenciar }`; las escenas y capas se dibujan encima. Con `base`, la duración se calcula sola |
+| `duracion` | Segundos; obligatoria si no hay `escenas` ni `base` |
+| `escenas[]` | `tipo`: `gancho` (texto enorme), `contenido` (texto abajo), `cta` (cierre; con `clave` muestra «Comenta «CLAVE»») o `pantalla` (grabación flotante con `zoom` y `focos`) · `duracion` · `texto` · `clip` y `desde` · `silenciar` |
+| `capas[]` | Piezas con `ini` y `fin` (segundos) y posición `x`, `y` (% del cuadro): `contador` (`desde`, `hasta`, `prefijo`, `sufijo`), `insignia` (`numero`), `tarjeta` (`variante`: `comentario`, `notificacion`, `estadistica` o `foto`; `nombre`, `texto`, `cifra`, `etiqueta`, `meGusta`, `imagen`, `rotacion`), `mira` (`etiqueta`, `radio`), `texto-curvo` (`texto`, `forma`: `arco` u `onda`) y `palabra` (`texto`, `serif`, `color`, `tamano`) |
+| `palabras` o `palabras_de` | Subtítulos palabra por palabra: la lista `[inicio, fin, palabra]`, o la ruta del `.analisis.json` de un video analizado |
+| `estiloPalabras` | `maxPalabras`, `claves` (palabras grandes y en color de acento), `serif` (palabras en cursiva elegante), `posicion` (`arriba`, `centro`, `abajo`), `mayusculas` |
+| `correcciones` | Arregla la transcripción: `{ "cloud": "Claude" }` |
+| `zooms[]` | Acercamientos de la toma base: `ini`, `fin`, `escala`, `x`, `y` |
+| `subtitulos[]` | Frases completas con `ini`, `fin` y `texto` |
+| `voz`, `musica` | Audio de locución y música (`archivo`, `volumen`) |
 | `ancho`, `alto`, `fps` | Opcionales; por defecto 1080×1920 a 30 fps |
 
-`marca.json` (opcional, por empresa): `{ "colores": { "fondo": "#0B0B0F", "texto": "#FFFFFF", "acento": "#FFC400" }, "fuente": "Impact", "logo": "al-volante/logo.png", "usuario": "@alvolante" }`. Lo que no pongas toma valores neutros.
+Todas las rutas de archivos son relativas a `empresas/` (p. ej. `al-volante/videos/propios/toma1.mp4`). `marca.json` (opcional, por empresa): `{ "colores": { "fondo": "#0B0B0F", "texto": "#FFFFFF", "acento": "#FFC400" }, "fuente": "Impact", "fuenteSerif": "Georgia", "logo": "al-volante/logo.png", "usuario": "@alvolante" }`. Lo que no pongas toma valores neutros. Las fuentes son las del sistema: con las de tu marca instaladas en el Mac se usan tal cual.
 
 ## Qué mide
 (Todo esto queda escrito en una nota por video dentro de la bóveda.)
@@ -84,8 +98,8 @@ El video queda en `empresas/<empresa>/salidas/<formato>.mp4`. Un guion se ve as�
 6. Decidir si el repositorio pasa a privado (hoy es público) y si se prueba también el conector de InVideo.
 
 **De mi parte (por construir)**
-1. Las piezas del estilo de las maquetas en Remotion: subtítulos palabra por palabra con palabra clave y serif cursiva, antes y después, contadores, tarjetas flotantes, recuadro de foco y cierre con palabra clave.
-2. De video en bruto a guion en un solo paso (transcribir, corregir, generar el guion).
+1. Pulido con tu marca real: fuentes de calidad (hoy se usan las del sistema), colores, logo y el acabado de cada pieza, que solo se puede afinar con una toma real de cada empresa.
+2. Que la mira siga la cara de la persona (hoy queda en una posición fija) y transiciones con desenfoque de movimiento.
 3. Montaje a ráfagas sobre el pulso de la música.
 4. Texto detrás de la persona con un modelo de recorte (por probar); el texto pegado al suelo seguirá siendo manual.
 5. Cargar tus estadísticas en la bóveda y comparar contra las referencias.

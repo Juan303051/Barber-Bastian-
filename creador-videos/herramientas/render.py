@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 from comun import EMPRESAS, RAIZ, nombre
+from guion import completar, recursos, revisar
 
 REMOTION = RAIZ / "remotion"
 CACHE = REMOTION / ".cache"
@@ -24,17 +25,6 @@ def _guion(carpeta: Path, indicado: str) -> Path:
     raise SystemExit(f"No encuentro el guion '{indicado}'. En {carpeta.name}/formatos hay: {', '.join(disponibles) or 'ninguno'}")
 
 
-def _recursos(props: dict) -> list[str]:
-    rutas = [e["clip"] for e in props["escenas"] if e.get("clip")]
-    rutas += [props[k] for k in ("voz",) if props.get(k)]
-    if props.get("musica"):
-        rutas.append(props["musica"]["archivo"])
-    if props["marca"].get("logo"):
-        rutas.append(props["marca"]["logo"])
-    # Un mismo clip puede aparecer en varias escenas: se enlaza una sola vez.
-    return list(dict.fromkeys(r for r in rutas if not r.startswith(("http://", "https://"))))
-
-
 def preparar(carpeta: Path, indicado: str) -> tuple[Path, Path, Path]:
     """Devuelve (props.json, carpeta pública, guion). Solo incluye los archivos que el guion usa."""
     guion = _guion(carpeta, indicado)
@@ -43,11 +33,16 @@ def preparar(carpeta: Path, indicado: str) -> tuple[Path, Path, Path]:
     props["marca"] = {"nombre": nombre(carpeta)} | (json.loads(ficha.read_text(encoding="utf-8")) if ficha.exists() else {}) | props.get("marca", {})
     if not ficha.exists():
         print(f"  (sin {ficha.relative_to(RAIZ)}: uso colores y fuente por defecto)")
+    props.setdefault("escenas", [])
+    completar(props)
+    errores = revisar(props)
+    if errores:
+        raise SystemExit(f"El guion {guion.name} tiene problemas:\n  - " + "\n  - ".join(errores))
 
     publica = CACHE / "publico"
     shutil.rmtree(publica, ignore_errors=True)
     faltan = []
-    for ruta in _recursos(props):
+    for ruta in recursos(props):
         origen = EMPRESAS / ruta
         if not origen.is_file():
             faltan.append(ruta)

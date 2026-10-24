@@ -40,11 +40,11 @@ git add -A && git commit -m "Nuevas referencias" && git push
 La primera vez, git te pedirá iniciar sesión en GitHub. Lo más fácil es instalar **GitHub Desktop** (https://desktop.github.com), o ejecutar `brew install gh` y luego `gh auth login`. Luego, en la conversación con Claude: «Analiza las referencias nuevas de Mundial de Motos». Claude lee la bóveda, escribe el análisis y las ideas, y sube los cambios. Tú los recibes con `git pull`. Mientras Claude trabaje en la nube no ve tus archivos de video: los videos que le envías por el chat sí le llegan.
 
 ## 7. Crear un video
-1. Pídele a Claude un guion para una de las ideas de `02-empresas/<empresa>/ideas/`. Lo guarda en `empresas/<empresa>/formatos/<nombre>.json`.
-2. Pon tus tomas en `empresas/<empresa>/videos/propios/` y referéncialas en el guion.
-3. Genera el video: `./creador render <nombre> --empresa <empresa>`.
-4. Míralo en `empresas/<empresa>/salidas/<nombre>.mp4`. Para ajustarlo en el navegador: `./creador estudio <nombre> --empresa <empresa>`.
-Prueba primero con el ejemplo: `./creador render remotion/ejemplo.json --empresa al-volante`.
+1. Pon tu toma (la persona hablando a cámara) en `empresas/<empresa>/videos/propios/` y analízala: `./creador analizar --empresa <empresa>`.
+2. Crea el guion borrador: `./creador guion toma1.mp4 --empresa <empresa>`. Ya trae subtítulos palabra por palabra y acercamientos. Se guarda en `empresas/<empresa>/formatos/toma1.json`.
+3. Ábrelo y ajusta: palabras importantes en `claves`, correcciones de lo que la transcripción entendió mal, y capas (contadores, insignias, tarjetas). Si quieres ideas de qué poner, pídeme un guion de una de las ideas de `02-empresas/<empresa>/ideas/`.
+4. Genera el video: `./creador render toma1 --empresa <empresa>`. Queda en `empresas/<empresa>/salidas/toma1.mp4`. Para ajustarlo viéndolo en el navegador: `./creador estudio toma1 --empresa <empresa>`.
+Para ver qué piezas existen, prueba los ejemplos: `./creador render remotion/ejemplos/estilo-completo.json --empresa al-volante` (los otros: `elementos`, `antes-despues`, `tutorial-pantalla`).
 
 ## 8. Cada día
 `git pull` → trabajar → `./creador informe` si cambió algo en las métricas → `./creador validar` → `git add -A && git commit -m "..." && git push`.
@@ -58,6 +58,8 @@ Prueba primero con el ejemplo: `./creador render remotion/ejemplo.json --empresa
 | «Your IP address is blocked» (TikTok) | Descarga el video desde el teléfono y cópialo a `videos/referencias/` |
 | Una descarga que antes funcionaba deja de funcionar | Las redes cambian: `.venv/bin/pip install -U yt-dlp` |
 | «Faltan archivos (rutas relativas a empresas/)» | El guion apunta a un archivo que no está: revisa el nombre y la carpeta |
+| «El guion … tiene problemas» | Cada línea dice qué escena o capa y qué campo falta o está mal; corrígelo y repite |
+| «ya existe y puede tener tus cambios» | `./creador guion` no pisa tus guiones: usa `--nombre otro` o `--forzar` |
 | `./creador validar` muestra errores | Cada línea dice qué nota y qué falla (enlace roto, empresa mezclada, falta `tipo`…). Arregla esa nota |
 | «no la toco» al generar notas | Hay una nota escrita a mano en el lugar de una generada; renómbrala |
 | Obsidian no muestra las imágenes de los videos | Los fotogramas no viajan por git: `./creador analizar --forzar` con los videos en tu Mac los regenera |

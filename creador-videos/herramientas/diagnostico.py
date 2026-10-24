@@ -15,6 +15,12 @@ import boveda
 from comun import BOVEDA, EMPRESAS, RAIZ, correr, empresas
 
 
+def _cola(texto: str, largo: int = 300) -> str:
+    """Final de un mensaje de error, sin el ruido de memoria de Docker que Remotion imprime."""
+    util = [l for l in texto.splitlines() if not any(k in l for k in ("Detected differing", "Memory reported", "inadvertently", "Using the lower"))]
+    return "\n".join(util)[-largo:].strip()
+
+
 class Resultado:
     def __init__(self) -> None:
         self.fallos = 0
@@ -124,12 +130,40 @@ def _validador(r: Resultado, temporal: Path) -> None:
     del salida
 
 
+def _guiones(r: Resultado) -> None:
+    print("\n5. Guiones y piezas de estilo")
+    import guion
+    bueno = {"escenas": [{"tipo": "gancho", "duracion": 2}],
+             "capas": [{"tipo": "contador", "ini": 0, "fin": 1, "desde": 0, "hasta": 5}], "palabras": [[0, 1, "hola"]]}
+    malo = {"escenas": [{"tipo": "inventado", "duracion": 0}], "capas": [{"tipo": "tarjeta", "ini": 2, "fin": 1}]}
+    r.paso("acepta un guion correcto", guion.revisar(bueno) == [])
+    r.paso("detecta los errores de un guion malo", len(guion.revisar(malo)) >= 4, f"{len(guion.revisar(malo))} problemas")
+    pares = [[0.0, 0.4, "uno."], [0.4, 0.9, "dos"], [0.9, 1.5, "tres."], [1.5, 2.2, "cuatro"], [2.2, 3.0, "cinco."]]
+    prueba = guion.borrador("x", "e/v.mp4", "e/a.json", "antes-despues", pares)
+    r.paso("crea el guion borrador de un video analizado", guion.revisar({**prueba, "duracion": 3}) == [] and len(prueba["zooms"]) == 1,
+           f"{len(prueba['zooms'])} acercamiento(s)")
+    if shutil.which("npm") and (RAIZ / "remotion" / "node_modules").exists():
+        resultado = subprocess.run(["npm", "run", "-s", "probar"], cwd=RAIZ / "remotion", capture_output=True, text=True)
+        r.paso("pruebas de la lógica de subtítulos y contadores", resultado.returncode == 0,
+               "" if resultado.returncode == 0 else _cola(resultado.stderr or resultado.stdout),
+               "si el mensaje habla de --experimental-strip-types: brew upgrade node; si dice ERR_ASSERTION es un fallo del programa: mándame este mensaje")
+
+
 def _remotion(r: Resultado, temporal: Path) -> None:
-    print("\n5. Generar un video con Remotion (la primera vez descarga un navegador de unos 100 MB y tarda)")
+    print("\n6. Generar un video con todas las piezas de estilo (la primera vez Remotion descarga un navegador de unos 100 MB y tarda)")
     import render
     guion = temporal / "guion.json"
-    guion.write_text(json.dumps({"formato": "prueba", "ancho": 360, "alto": 640, "escenas": [
-        {"tipo": "gancho", "duracion": 0.6, "texto": "Prueba"}, {"tipo": "cta", "duracion": 0.6, "texto": "Listo"}]}), encoding="utf-8")
+    guion.write_text(json.dumps({
+        "formato": "prueba", "ancho": 360, "alto": 640, "diseno": "antes-despues",
+        "escenas": [{"tipo": "gancho", "duracion": 0.8, "texto": "Prueba"},
+                    {"tipo": "cta", "duracion": 0.8, "clave": "CLAVE", "texto": "Listo"}],
+        "palabras": [[0.1, 0.4, "hola"], [0.4, 0.8, "mundo"]], "estiloPalabras": {"claves": ["mundo"]},
+        "capas": [{"tipo": "insignia", "ini": 0.2, "fin": 1.4, "x": 15, "y": 12, "numero": 1},
+                  {"tipo": "contador", "ini": 0.2, "fin": 1.4, "y": 28, "desde": 0, "hasta": 100},
+                  {"tipo": "tarjeta", "variante": "estadistica", "ini": 0.2, "fin": 1.4, "y": 60, "cifra": "1"},
+                  {"tipo": "mira", "ini": 0.2, "fin": 1.4, "y": 45, "etiqueta": "Prueba"},
+                  {"tipo": "texto-curvo", "ini": 0.2, "fin": 1.4, "y": 20, "texto": "Prueba"},
+                  {"tipo": "palabra", "ini": 0.2, "fin": 1.4, "y": 35, "texto": "OK"}]}), encoding="utf-8")
     salida = temporal / "prueba-remotion.mp4"
     try:
         resultado = render.render(empresas()[0], str(guion), salida, capturar=True)
@@ -137,11 +171,11 @@ def _remotion(r: Resultado, temporal: Path) -> None:
         r.paso("se genera el video", False, str(error), "ejecuta ./instalar.sh")
         return
     ok = resultado.returncode == 0 and salida.exists()
-    r.paso("se genera el video", ok, "" if ok else (resultado.stderr or resultado.stdout or "")[-300:].strip(),
-           "revisa que node esté instalado y que haya internet la primera vez")
+    r.paso("se genera el video", ok, "" if ok else _cola(resultado.stderr or resultado.stdout or ""),
+           "si habla de descargar un navegador: revisa internet y repite; si habla de una pieza, es un fallo del programa: mándame este mensaje")
     if ok:
         sonda = correr(["ffprobe", "-v", "error", "-show_entries", "stream=width,height,duration", "-of", "csv=p=0", str(salida)])
-        r.paso("el video mide 360×640 y dura ≈1.2 s", "360,640" in sonda.stdout, sonda.stdout.strip().replace("\n", " "), "")
+        r.paso("el video mide 360×640 y dura 1.6 s", "360,640,1.6" in sonda.stdout, sonda.stdout.strip().replace("\n", " "), "")
 
 
 def probar(rapido: bool) -> int:
@@ -154,13 +188,14 @@ def probar(rapido: bool) -> int:
         if shutil.which("ffmpeg") and shutil.which("ffprobe") and importlib.util.find_spec("yaml"):
             _analisis(r, temporal)
             _validador(r, temporal)
+            _guiones(r)
         else:
             print("\n(Se omiten las pruebas 3 y 4: faltan ffmpeg o PyYAML)")
         if rapido:
-            print("\n5. Remotion: omitido (--rapido)")
+            print("\n6. Remotion: omitido (--rapido)")
         elif (RAIZ / "remotion" / "node_modules").exists() and shutil.which("npx"):
             _remotion(r, temporal)
         else:
-            print("\n5. Remotion: omitido porque no está instalado")
+            print("\n6. Remotion: omitido porque no está instalado")
     print("\n" + ("Todo en orden." if r.fallos == 0 else f"{r.fallos} comprobaciones fallaron: arregla la primera y repite ./creador probar."))
     return 1 if r.fallos else 0

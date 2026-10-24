@@ -1,4 +1,4 @@
-"""Punto de entrada: ./creador preparar | probar | descargar | analizar | informe | todo | validar | render | estudio"""
+"""Punto de entrada: ./creador preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
 from __future__ import annotations
 
 import argparse
@@ -9,8 +9,8 @@ from comun import asegurar_carpetas, empresas, nombre
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "render", "estudio"])
-    ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json")
+    ap.add_argument("accion", choices=["preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
+    ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json; guion: nombre del archivo de video")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
     ap.add_argument("--solo-metadatos", action="store_true", help="descargar: solo vistas, likes y textos, sin el video")
     ap.add_argument("--cookies-navegador", metavar="NAVEGADOR", help="descargar: safari, chrome, firefox… (para videos que piden sesión)")
@@ -19,8 +19,10 @@ def main() -> int:
     ap.add_argument("--umbral", type=float, default=0.3, help="analizar: sensibilidad de corte, 0.1 detecta más, 0.5 menos")
     ap.add_argument("--sin-voz", action="store_true", help="analizar: no transcribir")
     ap.add_argument("--modelo-voz", default="base", help="analizar: tiny, base, small, medium")
+    ap.add_argument("--diseno", choices=["pleno", "antes-despues"], default="antes-despues", help="guion: diseño del borrador")
+    ap.add_argument("--nombre", help="guion: nombre del guion (por defecto, el del video)")
     ap.add_argument("--rapido", action="store_true", help="probar: omite la prueba de Remotion (la más lenta)")
-    ap.add_argument("--forzar", action="store_true", help="analizar: rehacer lo ya analizado")
+    ap.add_argument("--forzar", action="store_true", help="analizar: rehacer lo ya analizado; guion: reemplazar un guion que ya existe")
     a = ap.parse_args()
     asegurar_carpetas()
 
@@ -31,6 +33,14 @@ def main() -> int:
     if a.accion == "probar":
         from diagnostico import probar
         return probar(a.rapido)
+
+    if a.accion == "guion":
+        if not a.empresa or not a.guion:
+            ap.error("guion necesita --empresa y el video: ./creador guion <video.mp4> --empresa <empresa>")
+        from guion import crear
+        destino = crear(empresas(a.empresa)[0], a.guion, a.diseno, a.nombre, a.forzar)
+        print(f"Guion creado: {destino.relative_to(destino.parents[2])}\nRevísalo (palabras clave, capas) y genera el video con:  ./creador render {destino.stem} --empresa {a.empresa}")
+        return 0
 
     if a.accion in ("render", "estudio"):
         if not a.empresa or not a.guion:

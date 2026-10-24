@@ -1,152 +1,43 @@
-import {
-  AbsoluteFill,
-  Audio,
-  Img,
-  OffthreadVideo,
-  Sequence,
-  Series,
-  interpolate,
-  spring,
-  staticFile,
-  useCurrentFrame,
-  useVideoConfig,
-} from "remotion";
+import { ReactNode, useMemo } from "react";
+import { AbsoluteFill, Audio, OffthreadVideo, Sequence, Series, useCurrentFrame, useVideoConfig } from "remotion";
 import { resolverMarca } from "./defecto";
-import { Escena, FPS, Marca, Props, fotogramas } from "./tipos";
+import { VistaEscena } from "./escenas";
+import { paginar, zoomEn } from "./logica";
+import { Colocada, VistaCapa } from "./piezas";
+import { SubtitulosPalabras } from "./subtitulos";
+import { FPS, Marca, Props, fotogramas } from "./tipos";
+import { recurso, useUnidad } from "./util";
 
-const recurso = (ruta: string) => (/^https?:\/\//.test(ruta) ? ruta : staticFile(ruta));
-
-/** Todas las medidas están pensadas para 1080 px de ancho y se escalan con esto. */
-const useUnidad = () => useVideoConfig().width / 1080;
-
-const Fondo = ({ escena, marca, duracion }: { escena: Escena; marca: Marca; duracion: number }) => {
+const BaseContinua = ({ base, zooms, silenciar }: { base: NonNullable<Props["base"]>; zooms: Props["zooms"]; silenciar: boolean }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  // Un empuje lento hacia adelante da vida a una toma fija.
-  const zoom = interpolate(frame, [0, duracion], [1, 1.08], { extrapolateRight: "clamp" });
-  if (!escena.clip) {
-    return (
-      <AbsoluteFill
-        style={{ background: `radial-gradient(circle at 50% 35%, ${marca.colores.acento}33, ${marca.colores.fondo} 70%)` }}
-      />
-    );
-  }
+  const { escala, x, y } = zoomEn(frame / fps, zooms);
   return (
-    <AbsoluteFill style={{ backgroundColor: marca.colores.fondo, overflow: "hidden" }}>
+    <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
       <OffthreadVideo
-        src={recurso(escena.clip)}
-        startFrom={Math.round((escena.desde ?? 0) * fps)}
-        muted={escena.silenciar ?? false}
-        style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${zoom})` }}
+        src={recurso(base.clip)}
+        startFrom={Math.round((base.desde ?? 0) * fps)}
+        muted={silenciar}
+        style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${escala})`, transformOrigin: `${x}% ${y}%` }}
       />
     </AbsoluteFill>
   );
 };
 
-const Gancho = ({ texto, marca }: { texto: string; marca: Marca }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const u = useUnidad();
-  const entrada = spring({ frame, fps, config: { damping: 12, stiffness: 180 } });
-  return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: 70 * u }}>
-      <div
-        style={{
-          fontFamily: marca.fuente, fontWeight: 900,
-          fontSize: 124 * u,
-          lineHeight: 1.04,
-          textAlign: "center",
-          textTransform: "uppercase",
-          color: marca.colores.texto,
-          transform: `scale(${interpolate(entrada, [0, 1], [0.55, 1])})`,
-          opacity: interpolate(frame, [0, 3], [0, 1], { extrapolateRight: "clamp" }),
-          textShadow: `0 ${8 * u}px 0 rgba(0,0,0,.5), 0 0 ${40 * u}px rgba(0,0,0,.6)`,
-          borderBottom: `${14 * u}px solid ${marca.colores.acento}`,
-          paddingBottom: 24 * u,
-        }}
-      >
-        {texto}
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-const Contenido = ({ texto, marca }: { texto: string; marca: Marca }) => {
-  const frame = useCurrentFrame();
-  const u = useUnidad();
-  const entra = interpolate(frame, [0, 8], [0, 1], { extrapolateRight: "clamp" });
-  return (
-    <AbsoluteFill style={{ justifyContent: "flex-end", padding: `0 ${60 * u}px ${150 * u}px` }}>
-      <div
-        style={{
-          fontFamily: marca.fuente, fontWeight: 900,
-          fontSize: 62 * u,
-          lineHeight: 1.12,
-          color: marca.colores.texto,
-          backgroundColor: "rgba(0,0,0,.62)",
-          borderLeft: `${16 * u}px solid ${marca.colores.acento}`,
-          borderRadius: 14 * u,
-          padding: `${28 * u}px ${36 * u}px`,
-          opacity: entra,
-          transform: `translateY(${(1 - entra) * 60 * u}px)`,
-        }}
-      >
-        {texto}
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-const Cierre = ({ texto, marca }: { texto?: string; marca: Marca }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const u = useUnidad();
-  const entrada = spring({ frame, fps, config: { damping: 14 } });
-  return (
-    <AbsoluteFill
-      style={{ justifyContent: "center", alignItems: "center", gap: 56 * u, padding: 80 * u, transform: `scale(${interpolate(entrada, [0, 1], [0.9, 1])})` }}
-    >
-      {marca.logo && <Img src={recurso(marca.logo)} style={{ width: 360 * u, height: 360 * u, objectFit: "contain" }} />}
-      <div
-        style={{ fontFamily: marca.fuente, fontWeight: 900, fontSize: 96 * u, lineHeight: 1.06, textAlign: "center", textTransform: "uppercase", color: marca.colores.texto }}
-      >
-        {texto ?? marca.nombre}
-      </div>
-      {marca.usuario && (
-        <div
-          style={{ fontFamily: marca.fuente, fontWeight: 900, fontSize: 54 * u, color: marca.colores.fondo, backgroundColor: marca.colores.acento, borderRadius: 999, padding: `${16 * u}px ${48 * u}px` }}
-        >
-          {marca.usuario}
-        </div>
-      )}
-    </AbsoluteFill>
-  );
-};
-
-const VistaEscena = ({ escena, marca, duracion }: { escena: Escena; marca: Marca; duracion: number }) => (
-  <AbsoluteFill>
-    <Fondo escena={escena} marca={marca} duracion={duracion} />
-    {escena.tipo === "gancho" && <Gancho texto={escena.texto ?? ""} marca={marca} />}
-    {escena.tipo === "contenido" && escena.texto && <Contenido texto={escena.texto} marca={marca} />}
-    {escena.tipo === "cta" && <Cierre texto={escena.texto} marca={marca} />}
-  </AbsoluteFill>
-);
-
-const Subtitulo = ({ texto, marca }: { texto: string; marca: Marca }) => {
-  const frame = useCurrentFrame();
+const SubtituloFrase = ({ texto, marca }: { texto: string; marca: Marca }) => {
   const u = useUnidad();
   return (
     <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: `0 ${70 * u}px`, top: "12%" }}>
       <div
         style={{
-          fontFamily: marca.fuente, fontWeight: 900,
+          fontFamily: marca.fuente,
+          fontWeight: 900,
           fontSize: 70 * u,
           lineHeight: 1.1,
           textAlign: "center",
           color: marca.colores.texto,
           WebkitTextStroke: `${11 * u}px #000`,
           paintOrder: "stroke fill",
-          transform: `scale(${interpolate(frame, [0, 4], [0.85, 1], { extrapolateRight: "clamp" })})`,
         }}
       >
         {texto}
@@ -155,26 +46,117 @@ const Subtitulo = ({ texto, marca }: { texto: string; marca: Marca }) => {
   );
 };
 
-export const Formato = (props: Props) => {
+/** Todo lo que se ve del video (toma base, escenas, capas y subtítulos) sin el audio de locución ni de música. */
+const Cuerpo = ({ props, marca, silenciarBase }: { props: Props; marca: Marca; silenciarBase: boolean }) => {
   const fps = props.fps ?? FPS;
-  const marca = resolverMarca(props.marca);
+  const paginas = useMemo(
+    () => (props.palabras ? paginar(props.palabras, props.estiloPalabras, props.correcciones) : []),
+    [props.palabras, props.estiloPalabras, props.correcciones],
+  );
   return (
-    <AbsoluteFill style={{ backgroundColor: marca.colores.fondo }}>
+    <AbsoluteFill
+      style={{ background: props.base ? marca.colores.fondo : `radial-gradient(circle at 50% 35%, ${marca.colores.acento}33, ${marca.colores.fondo} 70%)` }}
+    >
+      {props.base && <BaseContinua base={props.base} zooms={props.zooms} silenciar={silenciarBase || (props.base.silenciar ?? false)} />}
       <Series>
-        {props.escenas.map((escena, i) => {
+        {(props.escenas ?? []).map((escena, i) => {
           const duracion = fotogramas(escena.duracion, fps);
           return (
             <Series.Sequence key={i} durationInFrames={duracion}>
-              <VistaEscena escena={escena} marca={marca} duracion={duracion} />
+              <VistaEscena escena={escena} marca={marca} duracion={duracion} hayBase={props.base !== undefined} />
             </Series.Sequence>
           );
         })}
       </Series>
-      {props.subtitulos?.map((s, i) => (
-        <Sequence key={i} from={Math.round(s.ini * fps)} durationInFrames={fotogramas(s.fin - s.ini, fps)}>
-          <Subtitulo texto={s.texto} marca={marca} />
+      {(props.capas ?? []).map((capa, i) => (
+        <Sequence key={i} from={Math.round(capa.ini * fps)} durationInFrames={fotogramas(capa.fin - capa.ini, fps)}>
+          <Colocada x={capa.x} y={capa.y}>
+            <VistaCapa capa={capa} marca={marca} />
+          </Colocada>
         </Sequence>
       ))}
+      {paginas.length > 0 && <SubtitulosPalabras paginas={paginas} marca={marca} estilo={props.estiloPalabras ?? {}} fps={fps} />}
+      {props.subtitulos?.map((s, i) => (
+        <Sequence key={i} from={Math.round(s.ini * fps)} durationInFrames={fotogramas(s.fin - s.ini, fps)}>
+          <SubtituloFrase texto={s.texto} marca={marca} />
+        </Sequence>
+      ))}
+    </AbsoluteFill>
+  );
+};
+
+/** Un cuadro con el aspecto del video, reducido y con bordes redondeados y sombra. */
+const Panel = ({ x, y, ancho, children }: { x: number; y: number; ancho: number; children: ReactNode }) => {
+  const { width, height } = useVideoConfig();
+  const u = useUnidad();
+  const escala = ancho / width;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        width: ancho,
+        height: height * escala,
+        borderRadius: 26 * u,
+        overflow: "hidden",
+        backgroundColor: "#000",
+        boxShadow: `0 ${18 * u}px ${50 * u}px rgba(0,0,0,.3)`,
+      }}
+    >
+      <div style={{ width, height, transform: `scale(${escala})`, transformOrigin: "top left" }}>{children}</div>
+    </div>
+  );
+};
+
+const Etiqueta = ({ texto, x, y }: { texto: string; x: number; y: number }) => {
+  const u = useUnidad();
+  return (
+    <div style={{ position: "absolute", left: x, top: y, fontFamily: "'Helvetica Neue', Arial, sans-serif", fontWeight: 800, fontSize: 40 * u, color: "#111" }}>{texto}</div>
+  );
+};
+
+const TomaCruda = ({ props, marca }: { props: Props; marca: Marca }) => {
+  const u = useUnidad();
+  if (props.base) {
+    return <Cuerpo props={{ ...props, escenas: [], capas: [], palabras: undefined, subtitulos: [], zooms: [], diseno: "pleno" }} marca={marca} silenciarBase />;
+  }
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#2B2D33", justifyContent: "center", alignItems: "center" }}>
+      <div style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif", fontWeight: 700, fontSize: 64 * u, color: "#8D929C", textAlign: "center", padding: 60 * u }}>tu toma cruda</div>
+    </AbsoluteFill>
+  );
+};
+
+const AntesDespues = ({ props, marca }: { props: Props; marca: Marca }) => {
+  const { width, height } = useVideoConfig();
+  const u = useUnidad();
+  const etiquetas = props.etiquetas ?? { antes: "antes", despues: "después" };
+  const anchoAntes = width * 0.26;
+  const anchoDespues = width * 0.6;
+  const xAntes = width * 0.05;
+  const xDespues = width * 0.35;
+  const yAntes = height * 0.3;
+  const yDespues = height * 0.1;
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#FBFBFC" }}>
+      <Etiqueta texto={etiquetas.antes} x={xAntes} y={yAntes - 62 * u} />
+      <Panel x={xAntes} y={yAntes} ancho={anchoAntes}>
+        <TomaCruda props={props} marca={marca} />
+      </Panel>
+      <Etiqueta texto={etiquetas.despues} x={xDespues} y={yDespues - 62 * u} />
+      <Panel x={xDespues} y={yDespues} ancho={anchoDespues}>
+        <Cuerpo props={props} marca={marca} silenciarBase={false} />
+      </Panel>
+    </AbsoluteFill>
+  );
+};
+
+export const Formato = (props: Props) => {
+  const marca = resolverMarca(props.marca);
+  return (
+    <AbsoluteFill style={{ backgroundColor: marca.colores.fondo }}>
+      {props.diseno === "antes-despues" ? <AntesDespues props={props} marca={marca} /> : <Cuerpo props={props} marca={marca} silenciarBase={false} />}
       {props.voz && <Audio src={recurso(props.voz)} />}
       {props.musica && <Audio src={recurso(props.musica.archivo)} volume={props.musica.volumen ?? 0.15} loop />}
     </AbsoluteFill>

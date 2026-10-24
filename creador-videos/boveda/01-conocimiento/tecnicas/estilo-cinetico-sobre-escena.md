@@ -39,6 +39,9 @@ Constantes: volumen medio de **−14 LUFS** en los cuatro (picos entre −0.6 y 
 | Línea de tiempo del editor visible bajo el video | @kevin | Manual: captura de pantalla del proyecto |
 | CTA con palabra clave + mensaje automático | @jeann, @dreomar | El texto sí; el mensaje automático es una herramienta externa → [[01-conocimiento/investigacion/cta-comenta-una-palabra-y-mensaje-automatico]] |
 
+## Qué ya está construido en Remotion
+Subtítulos palabra por palabra con claves y serif · insignias numeradas · contadores · tarjetas (comentario, notificación, estadística, foto) · pantalla dividida «antes / después» · grabación de pantalla flotante con zoom y recuadros de foco · mira con etiqueta · texto curvo (arco y onda) · palabra gigante extruida · cierre con palabra clave · acercamientos en la toma base. Los nombres de cada pieza en el guion y sus campos están en el README de `creador-videos`. Falta construir: la mira que siga la cara, las transiciones con desenfoque de movimiento y el montaje sobre el pulso de la música. Siguen siendo manuales: el texto pegado al suelo y el texto detrás de la persona.
+
 ## Cuatro formatos base
 **F1 · Antes y después** (de @jeann). Pantalla dividida: toma cruda pequeña a la izquierda, resultado editado grande a la derecha. Sirve para consejos con prueba y para mostrar la edición. Estructura: pregunta (0–3 s) → promesa → lista numerada con una prueba con cifra → oferta → CTA con palabra clave. Graba: una toma continua de 60–90 s.
 
