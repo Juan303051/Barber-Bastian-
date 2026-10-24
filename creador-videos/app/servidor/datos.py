@@ -31,10 +31,15 @@ CREATE TABLE IF NOT EXISTS trabajos (
   id TEXT PRIMARY KEY, usuario_id INTEGER, marca TEXT, titulo TEXT, prompt TEXT DEFAULT '', opciones TEXT DEFAULT '{}',
   fuente_archivo TEXT, fuente_nombre TEXT, fuente_duracion REAL, estado TEXT NOT NULL, etapa TEXT, progreso REAL DEFAULT 0,
   mensaje TEXT, error TEXT, resultado TEXT, referencias TEXT DEFAULT '[]', fotogramas_total INTEGER DEFAULT 0,
-  fotogramas_listos INTEGER DEFAULT 0, eta REAL, creado REAL NOT NULL, actualizado REAL NOT NULL, orden INTEGER DEFAULT 0, notas TEXT, fuente_vertical INTEGER DEFAULT 1);
+  fotogramas_listos INTEGER DEFAULT 0, eta REAL, creado REAL NOT NULL, actualizado REAL NOT NULL, orden INTEGER DEFAULT 0, notas TEXT, fuente_vertical INTEGER DEFAULT 1,
+  plan TEXT, calidad TEXT, musica_id TEXT, ia_info TEXT);
+CREATE TABLE IF NOT EXISTS musica (
+  id TEXT PRIMARY KEY, usuario_id INTEGER, titulo TEXT NOT NULL, archivo TEXT, estado TEXT NOT NULL, etapa TEXT, error TEXT,
+  analisis TEXT, licencia TEXT DEFAULT 'sin-confirmar', activa INTEGER DEFAULT 1, creada REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS perfiles (marca TEXT PRIMARY KEY, datos TEXT NOT NULL, actualizado REAL NOT NULL);
 """
 
-CAMPOS_JSON = {"opciones", "perfil", "referencias", "notas"}
+CAMPOS_JSON = {"opciones", "perfil", "referencias", "notas", "plan", "calidad", "ia_info", "analisis", "datos"}
 
 
 def abrir() -> sqlite3.Connection:
@@ -58,11 +63,11 @@ def abrir() -> sqlite3.Connection:
 
 def _completar_columnas(conexion: sqlite3.Connection) -> None:
     """Si la base viene de una versión anterior, añade las columnas que le faltan en vez de fallar."""
+    nuevas = {"notas": "TEXT", "fuente_vertical": "INTEGER DEFAULT 1", "plan": "TEXT", "calidad": "TEXT", "musica_id": "TEXT", "ia_info": "TEXT"}
     existentes = {f["name"] for f in conexion.execute("PRAGMA table_info(trabajos)").fetchall()}
-    if "notas" not in existentes:
-        conexion.execute("ALTER TABLE trabajos ADD COLUMN notas TEXT")
-    if "fuente_vertical" not in existentes:
-        conexion.execute("ALTER TABLE trabajos ADD COLUMN fuente_vertical INTEGER DEFAULT 1")
+    for columna, definicion in nuevas.items():
+        if columna not in existentes:
+            conexion.execute(f"ALTER TABLE trabajos ADD COLUMN {columna} {definicion}")
 
 
 def cerrar() -> None:

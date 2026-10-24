@@ -88,7 +88,7 @@ def correr(completo: bool) -> list[str]:
     r = c.put(f"/api/trabajos/{jid}/video?nombre=toma.mp4", content=toma.read_bytes())
     ok(r.status_code == 200 and 2.5 < r.json()["duracion"] < 3.5, f"video válido: dura {r.json().get('duracion')} s")
     ok(c.get(f"/api/trabajos/{jid}/miniatura").status_code == 200, "se genera la miniatura")
-    r = c.post("/api/interpretar", json={"prompt": "Resalta las palabras dinero y semanas. Quita las pausas. Comenta EDITOR. Con música", "opciones": {}}).json()
+    r = c.post("/api/interpretar", json={"prompt": "Resalta las palabras dinero y semanas. Quita las pausas. Comenta EDITOR. Con transiciones", "opciones": {}}).json()
     ok(any("dinero" in f["texto"] for f in r["entendido"]) and r["sugerencias"][0]["clave"] == "quitar_pausas" and r["pendiente"],
        "interpretar: entiende, sugiere y avisa de lo que no hace")
     c.patch(f"/api/trabajos/{jid}", json={"prompt": "Resalta las palabras dinero y semanas. Comenta EDITOR", "titulo": "Prueba", "opciones": {"calidad": "borrador", "intruso": 1}})
@@ -96,6 +96,46 @@ def correr(completo: bool) -> list[str]:
     ok(t["opciones"] == {"calidad": "borrador"} and t["titulo"] == "Prueba", "solo se guardan las opciones permitidas")
     r = c.post("/api/referencias/enlace", json={"url": "hola"})
     ok(r.status_code == 422, "un enlace que no es enlace se rechaza")
+
+    print("Música, IA y test del director")
+    from . import pruebas_audio
+    from .direccion import ia
+    cancion = temporal / "cancion.wav"
+    pruebas_audio.escribir_wav(pruebas_audio.pista_sintetica(100, 30.0)[0], cancion)
+    r = c.put("/api/musica/archivo?nombre=falso.mp3", content=b"esto no es musica")
+    id_falso = r.json()["id"]
+    r = c.put("/api/musica/archivo?nombre=notas.txt", content=b"hola")
+    ok(r.status_code == 415, "música: una extensión que no es de audio se rechaza (415)")
+    r = c.put("/api/musica/archivo?nombre=Mi%20Cancion.wav", content=cancion.read_bytes())
+    id_cancion = r.json()["id"]
+    ok(r.status_code == 200, "música: se sube una canción")
+
+    def esperar_musica(id_: str) -> dict:
+        for _ in range(240):
+            m = next(x for x in c.get("/api/estado").json()["musica"] if x["id"] == id_)
+            if m["estado"] in {"lista", "error"}:
+                return m
+            time.sleep(0.5)
+        return m
+    m = esperar_musica(id_cancion)
+    ok(m["estado"] == "lista" and abs(m["bpm"] - 100) < 1.5 and m["licencia"] == "sin-confirmar", f"música: se analiza sola ({m['bpm']} BPM, licencia «{m['licencia']}»)")
+    m_falso = esperar_musica(id_falso)
+    ok(m_falso["estado"] == "error" and "audio" in m_falso["error"], f"música: un archivo falso termina en un error claro («{m_falso['error']}»)")
+    ok(c.patch(f"/api/musica/{id_cancion}", json={"licencia": "inventada"}).status_code == 422, "música: una licencia que no existe se rechaza")
+    ok(c.patch(f"/api/musica/{id_cancion}", json={"licencia": "licenciada"}).status_code == 200, "música: se declara la licencia")
+    ok(c.get(f"/api/musica/{id_cancion}/audio").status_code == 200, "música: se puede escuchar desde la página")
+    ok(c.delete(f"/api/musica/{id_falso}").status_code == 200 and len(c.get("/api/estado").json()["musica"]) == 1, "música: se puede quitar")
+    estado_ia = c.get("/api/ia").json()
+    ok("clave" not in estado_ia and estado_ia["modelo"] == "claude-opus-5-5", "IA: el estado no incluye la clave y el modelo por defecto es Opus 5.5")
+    ok(c.put("/api/ia", json={"clave": "tiene espacios dentro"}).status_code == 422, "IA: una clave con espacios se rechaza")
+    ok(c.put("/api/ia", json={"activa": False}).json()["activa"] is False, "IA: se puede apagar")
+    c.put("/api/ia", json={"activa": True})
+    pregunta = c.get("/api/perfil").json()
+    ok(len(pregunta["preguntas"]) == 10 and pregunta["respuestas"] == {}, "test del director: 10 preguntas y sin respuestas todavía")
+    r = c.put("/api/perfil", json={"marca": "al-volante", "respuestas": {"tono": "volando"}})
+    ok(r.status_code == 422 and "tono" in r.json()["campos"], "test del director: una opción inválida se rechaza")
+    c.put("/api/perfil", json={"marca": "al-volante", "respuestas": {"tono": "experto", "ritmo": "rapido", "nunca": "garantizado"}})
+    ok(c.get("/api/perfil?marca=al-volante").json()["respuestas"]["tono"] == "experto" and c.get("/api/perfil").json()["respuestas"] == {}, "test del director: se guarda por marca sin tocar el general")
 
     if completo:
         print("Un video de verdad (sin voz: debe crearse igual)")
@@ -125,6 +165,50 @@ def correr(completo: bool) -> list[str]:
         time.sleep(1.5)
         t = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid)
         ok(t["estado"] in {"cancelado", "listo"}, f"cancelar a mitad deja un estado limpio ({t['estado']})")
+
+        print("Un video con voz simulada, IA simulada y música")
+        import analizar
+        import audio as medidas
+        from .pruebas_direccion import TRANSCRIPCION, _Falso, _palabras, _plan_de_la_ia, _respuesta
+        voz = temporal / "voz.wav"
+        pruebas_audio.voz_sintetica(voz, 14.0)
+        toma_voz = temporal / "toma-voz.mp4"
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=360x640:d=14:r=30", "-i", str(voz), "-map", "0:v", "-map", "1:a", "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(toma_voz)], check=True)
+        palabras = _palabras(TRANSCRIPCION)
+        original_voz = analizar._voz
+        analizar._voz = lambda ruta, dur, modelo, avance=None, idioma=None: {"idioma": "es", "palabras_por_min": 150, "gancho_texto": "Primero revisa el aceite", "palabras": palabras,
+                                                                           "segmentos": [{"ini": palabras[0][0], "fin": palabras[-1][1], "texto": TRANSCRIPCION}]}
+        plan = _plan_de_la_ia()
+        plan["momentos"] = [{"t": 1.5, "tipo": "acercamiento", "motivo": ""}, {"t": 3.8, "tipo": "contador", "motivo": "", "valor": 5000}]
+        falso = _Falso(_respuesta(json.dumps(plan)))
+        ia._fabrica = lambda: falso
+        try:
+            jid2 = c.post("/api/trabajos", json={"marca": "al-volante", "titulo": "Con IA"}).json()["id"]
+            c.put(f"/api/trabajos/{jid2}/video?nombre=toma-voz.mp4", content=toma_voz.read_bytes())
+            c.patch(f"/api/trabajos/{jid2}", json={"prompt": "Resalta aceite y filtro.", "opciones": {"calidad": "borrador", "musica": True}})
+            c.post(f"/api/trabajos/{jid2}/crear")
+            inicio = time.time()
+            while time.time() - inicio < 900:
+                t2 = next(x for x in c.get("/api/estado").json()["trabajos"] if x["id"] == jid2)
+                if t2["estado"] in {"listo", "error", "cancelado"}:
+                    break
+                time.sleep(0.7)
+        finally:
+            analizar._voz = original_voz
+            ia._fabrica = None
+        ok(t2["estado"] == "listo", f"termina bien ({t2['estado']}{': ' + str(t2['error']) if t2['error'] else ''}, {round(time.time() - inicio)} s)")
+        ok(t2["ia"] and t2["ia"]["usada"] and t2["ia"]["costo_usd"] and len(falso.llamadas) == 1, f"la IA dirigió el video y se registró el costo estimado ({t2['ia']})")
+        ok(t2["direccion"] and t2["direccion"]["gancho"] == "Alarga la vida de tu moto" and t2["direccion"]["look"] == "calido", "el plan del director queda guardado y se muestra")
+        ok(t2["musica"] and t2["musica"]["licencia"] == "licenciada" and abs(t2["musica"]["bpm"] - 100) < 1.5, f"usó la canción de la biblioteca ({t2['musica']})")
+        ok(any("pulso" in n or "Música" in n for n in t2["notas"]), "las notas cuentan que se usó música")
+        ok(t2["calidad"] is not None and t2["calidad"]["veredicto"] in {"listo", "revisar"}, f"el control de calidad dejó su informe ({t2['calidad']['veredicto']}: {t2['calidad']['resumen']})")
+        niveles = {p["id"]: p["nivel"] for p in t2["calidad"]["pruebas"]}
+        ok(niveles["volumen"] == "ok" and niveles["pico"] == "ok" and niveles["negros"] == "ok", f"volumen, pico y negros en orden ({niveles['volumen']}, {niveles['pico']}, {niveles['negros']})")
+        final = temporal / "resultado-ia.mp4"
+        final.write_bytes(c.get(f"/api/trabajos/{jid2}/resultado").content)
+        medida = medidas.medir(final)
+        ok(medida is not None and abs(medida["lufs"] + 14) <= 1.0, f"el audio final quedó a {medida['lufs'] if medida else '?'} LUFS (objetivo −14)")
     return fallos
 
 

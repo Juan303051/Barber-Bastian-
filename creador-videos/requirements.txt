@@ -7,3 +7,6 @@ av<17
 fastapi
 uvicorn
 httpx
+numpy
+# El director con IA (opcional en uso: sin clave, la app funciona con reglas)
+anthropic

@@ -32,7 +32,7 @@ Constantes: volumen medio de **−14 LUFS** en los cuatro (picos entre −0.6 y 
 | Grabación de pantalla flotante con recuadro de foco y zoom | @dreomar | Automático (zoom y recuadro), con la grabación del cliente |
 | Mira o aro con etiqueta alrededor de la cabeza | @sandeep | Semiautomático (posición fija; seguir la cara exige detección) |
 | Texto curvado sobre una trayectoria | @kevin, @dreomar, @sandeep | Semiautomático (texto sobre trazado) |
-| Montaje a ráfagas sobre la música | @kevin, @dreomar | Semiautomático: detectar el pulso de la música y generar la lista de cortes |
+| Montaje a ráfagas | @kevin, @dreomar | Semiautomático. **Ojo:** «sobre la música» fue una impresión visual; al medirlo, los cortes **no** caen sobre el pulso (ver [[01-conocimiento/investigacion/estandares-video-vertical-publicidad]]). La app ofrece cortes y acercamientos sobre el pulso como opción propia y mide el resultado |
 | Texto en perspectiva pegado al suelo o a la pared | @kevin, @sandeep | **Manual:** requiere seguimiento 3D → [[01-conocimiento/investigacion/texto-en-escena-seguimiento-y-mascaras]] |
 | Texto detrás de la persona | @kevin, @dreomar | **Manual o con un modelo de recorte:** capa de texto entre el video y una copia recortada de la persona |
 | Transiciones con desenfoque de movimiento (barridos) | @kevin, @dreomar | Semiautomático; mejor con la toma pensada para el barrido |

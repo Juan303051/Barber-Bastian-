@@ -16,11 +16,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 import comun
 
-from . import datos, interprete, produccion, seguridad
+from . import calidad, datos, interprete, produccion, seguridad
+from .direccion import ia, perfil as perfiles
 
 WEB = datos.RAIZ_APP / "web"
 COOKIE = "iris_sesion"
 EXTENSIONES = {".mp4", ".mov", ".m4v", ".webm", ".mkv"}
+EXTENSIONES_AUDIO = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus"}
+TIPOS_AUDIO = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg", ".opus": "audio/ogg"}
+MAX_BYTES_AUDIO = 300 * 1024**2
+LICENCIAS = set(calidad.LICENCIAS)
 MAX_BYTES = int(float(os.environ.get("IRIS_MAX_GB", "4")) * 1024**3)
 MAX_MINUTOS = 45
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; "
@@ -31,7 +36,7 @@ PASO_DE = {texto: clave for clave, texto in produccion.ETAPAS.items()}
 
 
 def _pasos_de(opciones: dict) -> list[dict]:
-    claves = ["preparar"] + (["pausas"] if opciones.get("quitar_pausas") else []) + ["voz", "guion", "render", "final"]
+    claves = ["preparar"] + (["pausas"] if opciones.get("quitar_pausas") else []) + ["voz", "direccion", "guion", "render", "final", "revision"]
     return [{"clave": c, "texto": produccion.ETAPAS[c]} for c in claves]
 
 
@@ -146,8 +151,12 @@ def crear_app(puerto: int = 8765) -> FastAPI:
                 _borrar_trabajo(t["id"])
             for r in datos.todos("SELECT id FROM referencias WHERE usuario_id = ?", (yo["id"],)):
                 _borrar_referencia(r["id"])
+            for m in datos.todos("SELECT id FROM musica WHERE usuario_id = ?", (yo["id"],)):
+                shutil.rmtree(produccion.carpeta_de_cancion(m["id"]), ignore_errors=True)
+                datos.ejecutar("DELETE FROM musica WHERE id = ?", (m["id"],))
         datos.ejecutar("UPDATE trabajos SET usuario_id = NULL WHERE usuario_id = ?", (yo["id"],))
         datos.ejecutar("UPDATE referencias SET usuario_id = NULL WHERE usuario_id = ?", (yo["id"],))
+        datos.ejecutar("UPDATE musica SET usuario_id = NULL WHERE usuario_id = ?", (yo["id"],))
         datos.ejecutar("DELETE FROM usuarios WHERE id = ?", (yo["id"],))
         respuesta.delete_cookie(COOKIE, path="/")
         return {"ok": True}
@@ -171,6 +180,8 @@ def crear_app(puerto: int = 8765) -> FastAPI:
 
     def publico_trabajo(t: dict) -> dict:
         base = produccion.carpeta_de_trabajo(t["id"])
+        if t["estado"] == "listo" and not (base / "resultado.mp4").exists():  # alguien borró el archivo a mano: se avisa en vez de mostrar un video roto
+            t = {**t, "estado": "interrumpido", "resultado": None, "mensaje": "El video ya no está en este equipo. Puedes volver a crearlo."}
         config = interprete.efectivo(t["prompt"] or "", t["opciones"] or {})
         return {"id": t["id"], "marca": t["marca"], "titulo": t["titulo"], "prompt": t["prompt"], "opciones": t["opciones"] or {},
                 "fuente_nombre": t["fuente_nombre"], "fuente_duracion": t["fuente_duracion"], "vertical": bool(t["fuente_vertical"]), "estado": t["estado"], "etapa": t["etapa"],
@@ -178,14 +189,22 @@ def crear_app(puerto: int = 8765) -> FastAPI:
                 "fotogramas_total": t["fotogramas_total"], "fotogramas_listos": t["fotogramas_listos"], "eta": t["eta"],
                 "miniatura": (base / "miniatura.jpg").exists(), "entendido": interprete.resumen(config), "pendiente": config["pendiente"],
                 "sugerencias": _sugerencias(config, t["opciones"] or {}), "actualizado": t["actualizado"], "notas": t["notas"] or [],
-                "pasos": _pasos_de(t["opciones"] or {}), "paso": PASO_DE.get(t["etapa"]) or ("cola" if t["estado"] == "en_cola" else None)}
+                "pasos": _pasos_de(t["opciones"] or {}), "paso": PASO_DE.get(t["etapa"]) or ("cola" if t["estado"] == "en_cola" else None),
+                "calidad": t["calidad"], "ia": t["ia_info"], "direccion": _direccion_publica(t["plan"]), "musica": _musica_de_trabajo(t["musica_id"])}
+
+    def publica_cancion(m: dict) -> dict:
+        a = m["analisis"] or {}
+        return {"id": m["id"], "titulo": m["titulo"], "estado": m["estado"], "etapa": m["etapa"], "error": m["error"], "licencia": m["licencia"], "activa": bool(m["activa"]),
+                "bpm": a.get("bpm"), "ritmo": a.get("ritmo"), "intensidad": a.get("intensidad"), "confianza": a.get("confianza"), "duracion": a.get("duracion"),
+                "lufs": (a.get("volumen") or {}).get("lufs"), "caidas": len(a.get("caidas") or [])}
 
     @app.get("/api/estado")
     def estado(request: Request):
         usuario(request)
         referencias = [publica_referencia(r) for r in datos.todos("SELECT * FROM referencias ORDER BY creada")]
         trabajos = [publico_trabajo(t) for t in datos.todos("SELECT * FROM trabajos ORDER BY orden, creado")]
-        return {"referencias": referencias, "trabajos": trabajos}
+        musica = [publica_cancion(m) for m in datos.todos("SELECT * FROM musica ORDER BY creada")]
+        return {"referencias": referencias, "trabajos": trabajos, "musica": musica, "ia": ia.estado_publico()}
 
     @app.post("/api/interpretar")
     async def interpretar(request: Request):
@@ -240,6 +259,92 @@ def crear_app(puerto: int = 8765) -> FastAPI:
         usuario(request)
         return _archivo(produccion.carpeta_de_referencia(_id(id_)) / "miniatura.jpg", "image/jpeg")
 
+    # --------------------------------------------------------------------------------------------------- música
+    @app.put("/api/musica/archivo")
+    async def musica_subir(request: Request, nombre: str = "cancion.mp3"):
+        yo = usuario(request)
+        id_ = uuid.uuid4().hex[:12]
+        ruta = await _guardar_archivo(request, produccion.carpeta_de_cancion(id_) / "pista", nombre, EXTENSIONES_AUDIO, MAX_BYTES_AUDIO,
+                                      "Ese tipo de archivo no es música compatible. Usa MP3, WAV, M4A, AAC, FLAC u OGG.")
+        datos.insertar("musica", {"id": id_, "usuario_id": yo["id"], "titulo": _titulo_de(nombre)[:80] or "Canción", "archivo": str(ruta.relative_to(datos.DATOS)),
+                                  "estado": "en_cola", "etapa": "En espera", "licencia": "sin-confirmar", "creada": datos.ahora()})
+        produccion.encolar("musica", id_)
+        return {"id": id_}
+
+    @app.patch("/api/musica/{id_}")
+    async def musica_cambiar(id_: str, request: Request):
+        usuario(request)
+        _existe("musica", id_)
+        cuerpo = await _json(request)
+        cambios: dict = {}
+        if "licencia" in cuerpo:
+            if cuerpo["licencia"] not in LICENCIAS:
+                raise error(422, "Elige una de las licencias de la lista.")
+            cambios["licencia"] = cuerpo["licencia"]
+        if "activa" in cuerpo:
+            cambios["activa"] = 1 if cuerpo["activa"] else 0
+        if "titulo" in cuerpo and str(cuerpo["titulo"]).strip():
+            cambios["titulo"] = str(cuerpo["titulo"]).strip()[:80]
+        datos.actualizar("musica", id_, cambios)
+        return {"ok": True}
+
+    @app.delete("/api/musica/{id_}")
+    def musica_borrar(id_: str, request: Request):
+        usuario(request)
+        _existe("musica", id_)
+        produccion.cancelar(id_)
+        shutil.rmtree(produccion.carpeta_de_cancion(id_), ignore_errors=True)
+        datos.ejecutar("DELETE FROM musica WHERE id = ?", (id_,))
+        return {"ok": True}
+
+    @app.get("/api/musica/{id_}/audio")
+    def musica_audio(id_: str, request: Request):
+        usuario(request)
+        m = _existe("musica", id_)
+        ruta = datos.DATOS / (m["archivo"] or "")
+        return _archivo(ruta, TIPOS_AUDIO.get(ruta.suffix.lower(), "application/octet-stream"))
+
+    # ------------------------------------------------------------------------------------------------------ IA
+    @app.get("/api/ia")
+    def ia_estado(request: Request):
+        usuario(request)
+        return ia.estado_publico()
+
+    @app.put("/api/ia")
+    async def ia_guardar(request: Request):
+        usuario(request)
+        cuerpo = await _json(request)
+        cambios = {k: cuerpo[k] for k in ("activa", "ver_fotogramas", "modelo", "clave") if k in cuerpo}
+        if "clave" in cambios and (not isinstance(cambios["clave"], str) or len(cambios["clave"]) > 300 or re.search(r"\s", cambios["clave"].strip())):
+            raise error(422, "Esa clave no parece válida: pégala completa y sin espacios.")
+        ia.guardar_ajustes(cambios)
+        return ia.estado_publico()
+
+    @app.post("/api/ia/probar")
+    def ia_probar(request: Request):
+        usuario(request)
+        ok, mensaje = ia.probar_clave(ia.estado_publico()["modelo"])
+        return {"ok": ok, "mensaje": mensaje}
+
+    # ------------------------------------------------------------------------------- test del director
+    @app.get("/api/perfil")
+    def perfil_leer(request: Request, marca: str = ""):
+        usuario(request)
+        marca_ok = _marca_valida(marca)
+        return {"preguntas": perfiles.PREGUNTAS, "respuestas": perfiles.leer_exacto(marca_ok) or {}, "marca": marca_ok,
+                "general": perfiles.leer_exacto(None) or {} if marca_ok else None}
+
+    @app.put("/api/perfil")
+    async def perfil_guardar(request: Request):
+        usuario(request)
+        cuerpo = await _json(request)
+        marca_ok = _marca_valida(cuerpo.get("marca"))
+        limpias, errores = perfiles.validar(cuerpo.get("respuestas") if isinstance(cuerpo.get("respuestas"), dict) else {})
+        if errores:
+            raise error(422, "Revisa las respuestas marcadas.", campos=errores)
+        perfiles.guardar(marca_ok, limpias)
+        return {"ok": True, "respuestas": limpias}
+
     # ------------------------------------------------------------------------------------------------ trabajos
     @app.post("/api/trabajos")
     async def trabajo_nuevo(request: Request):
@@ -268,7 +373,7 @@ def crear_app(puerto: int = 8765) -> FastAPI:
         if "marca" in cuerpo:
             cambios["marca"] = _marca_valida(cuerpo["marca"])
         if "opciones" in cuerpo and isinstance(cuerpo["opciones"], dict):
-            permitidas = {"formato", "quitar_pausas", "acercamientos", "insignias", "contadores", "cierre", "color_referencias", "idioma", "calidad"}
+            permitidas = {"formato", "quitar_pausas", "acercamientos", "insignias", "contadores", "cierre", "color_referencias", "idioma", "calidad", "musica", "acabado", "ia"}
             cambios["opciones"] = {k: v for k, v in cuerpo["opciones"].items() if k in permitidas}
         datos.actualizar("trabajos", id_, cambios)
         return {"ok": True}
@@ -385,6 +490,25 @@ def _marca_valida(marca) -> str | None:
     return marca if isinstance(marca, str) and marca != produccion.NEUTRA and (comun.EMPRESAS / marca).is_dir() and "/" not in marca else None
 
 
+def _direccion_publica(plan: dict | None) -> dict | None:
+    """Lo que el director decidió, para contárselo a la persona (sin los tiempos internos)."""
+    if not plan:
+        return None
+    return {"origen": plan.get("origen"), "resumen": plan["concepto"]["resumen"], "tono": plan["concepto"]["tono"], "tipo_de_gancho": plan["concepto"]["tipo_de_gancho"],
+            "gancho": plan["gancho"]["texto"], "alternativas": plan["gancho"]["alternativas"], "alertas": plan.get("alertas", []),
+            "look": plan["acabado"]["look"], "advertencias": plan.get("advertencias_ia", [])}
+
+
+def _musica_de_trabajo(id_: str | None) -> dict | None:
+    if not id_:
+        return None
+    m = datos.uno("SELECT titulo, licencia, analisis FROM musica WHERE id = ?", (id_,))
+    if not m:
+        return None
+    a = m["analisis"] or {}
+    return {"titulo": m["titulo"], "licencia": m["licencia"], "bpm": a.get("bpm"), "confianza": a.get("confianza")}
+
+
 def _titulo_de(nombre: str) -> str:
     return re.sub(r"[_\-]+", " ", Path(nombre).stem).strip()[:80] or "Referencia"
 
@@ -397,10 +521,12 @@ def _archivo(ruta: Path, tipo: str, cache: str = "private, max-age=3600") -> Fil
 
 def _sugerencias(config: dict, opciones: dict) -> list[dict]:
     """Cosas que el texto pide y los interruptores todavía no tienen: se ofrecen como botón, no se aplican solas."""
-    etiquetas = {"quitar_pausas": "Quitar pausas largas", "formato": "Formato «Antes y después»"}
+    etiquetas = {"quitar_pausas": "Quitar pausas largas", "formato": "Formato «Antes y después»", "musica": "Poner música de fondo"}
     salida = []
     for clave, valor in config["sugerencias"].items():
-        actual = opciones.get(clave)
+        actual = opciones.get(clave, True) if clave == "musica" else opciones.get(clave)
+        if clave == "musica" and valor is False:
+            etiquetas["musica"] = "Quitar la música"
         if actual != valor and not (clave == "formato" and (actual or "subtitulos") == valor):
             salida.append({"clave": clave, "valor": valor, "texto": etiquetas.get(clave, clave)})
     return salida
@@ -428,10 +554,15 @@ def _sondear(ruta: Path) -> dict:
 
 
 async def _guardar_video(request: Request, destino_sin_extension: Path, nombre: str) -> Path:
-    """Recibe el video como flujo, lo escribe a disco por partes y respeta el tamaño máximo."""
+    return await _guardar_archivo(request, destino_sin_extension, nombre, EXTENSIONES, MAX_BYTES,
+                                  "Ese tipo de archivo no es un video compatible. Usa MP4, MOV, M4V, WEBM o MKV.")
+
+
+async def _guardar_archivo(request: Request, destino_sin_extension: Path, nombre: str, extensiones: set[str], maximo: int, mensaje_tipo: str) -> Path:
+    """Recibe un archivo como flujo, lo escribe a disco por partes y respeta el tamaño máximo."""
     extension = Path(nombre).suffix.lower()
-    if extension not in EXTENSIONES:
-        raise error(415, "Ese tipo de archivo no es un video compatible. Usa MP4, MOV, M4V, WEBM o MKV.")
+    if extension not in extensiones:
+        raise error(415, mensaje_tipo)
     destino = destino_sin_extension.with_suffix(extension)
     destino.parent.mkdir(parents=True, exist_ok=True)
     for viejo in destino.parent.glob(destino.stem + ".*"):
@@ -442,8 +573,8 @@ async def _guardar_video(request: Request, destino_sin_extension: Path, nombre: 
         with open(temporal, "wb") as salida:
             async for pedazo in request.stream():
                 escrito += len(pedazo)
-                if escrito > MAX_BYTES:
-                    raise error(413, f"El archivo pesa más de {MAX_BYTES // 1024**3} GB.")
+                if escrito > maximo:
+                    raise error(413, f"El archivo pesa más de {maximo // 1024**2} MB." if maximo < 1024**3 else f"El archivo pesa más de {maximo // 1024**3} GB.")
                 salida.write(pedazo)
         if escrito == 0:
             raise error(422, "El archivo llegó vacío.")

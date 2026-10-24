@@ -14,23 +14,29 @@ import traceback
 from pathlib import Path
 
 import analizar
+import audio
 import comun
 import descargar
 import guion as revisor
+import mezcla
+import musica as analisis_musical
 import render
 
-from . import datos, estilo, interprete, pausas
+from . import calidad, datos, estilo, interprete, pausas
+from .direccion import ia, perfil as perfiles, plan as planes
 
 NEUTRA = "maquetas-estilo"  # carpeta de la biblioteca compartida: aquí se guarda lo que no pertenece a una marca
 FPS = 30
-PESOS = {"preparar": 4, "pausas": 8, "voz": 28, "guion": 3, "render": 50, "final": 7}
+PESOS = {"preparar": 4, "pausas": 8, "voz": 28, "direccion": 6, "guion": 2, "render": 46, "final": 8, "revision": 4}
 ETAPAS = {
     "preparar": "Preparando tu video",
     "pausas": "Quitando las pausas largas",
     "voz": "Escuchando y transcribiendo la voz",
+    "direccion": "Dirigiendo el video",
     "guion": "Armando el guion con lo que pediste",
     "render": "Construyendo el video",
-    "final": "Sumando el sonido y terminando",
+    "final": "Mezclando y nivelando el sonido",
+    "revision": "Revisando la calidad",
 }
 RUIDO = ("Detected differing", "Memory reported", "inadvertently", "Using the lower")
 
@@ -58,6 +64,10 @@ def carpeta_de_referencia(id_: str) -> Path:
     return datos.DATOS / "referencias" / id_
 
 
+def carpeta_de_cancion(id_: str) -> Path:
+    return datos.DATOS / "musica" / id_
+
+
 def carpeta_de_marca(marca: str | None) -> Path:
     destino = comun.EMPRESAS / (marca or NEUTRA)
     return destino if destino.is_dir() else comun.EMPRESAS / NEUTRA
@@ -76,6 +86,8 @@ def iniciar() -> None:
         datos.ejecutar("UPDATE trabajos SET estado = 'interrumpido', mensaje = 'Se cerró la app mientras trabajaba. Puedes volver a crearlo.' "
                        "WHERE estado IN ('en_cola', 'trabajando')")
         datos.ejecutar("UPDATE referencias SET estado = 'error', error = 'Se cerró la app mientras analizaba. Quítala y vuelve a añadirla.' "
+                       "WHERE estado IN ('en_cola', 'analizando')")
+        datos.ejecutar("UPDATE musica SET estado = 'error', error = 'Se cerró la app mientras analizaba. Quítala y vuelve a añadirla.' "
                        "WHERE estado IN ('en_cola', 'analizando')")
         _hilo = threading.Thread(target=_trabajar, name="iris-cola", daemon=True)
         _hilo.start()
@@ -113,11 +125,15 @@ def _trabajar() -> None:
         try:
             if tipo == "referencia":
                 _analizar_referencia(id_)
+            elif tipo == "musica":
+                _analizar_cancion(id_)
             else:
                 _construir(id_)
         except Cancelado:
             if tipo == "trabajo":
                 datos.actualizar("trabajos", id_, {"estado": "cancelado", "etapa": None, "mensaje": "Cancelaste este video.", "eta": None, "actualizado": datos.ahora()})
+            elif tipo == "musica":
+                datos.actualizar("musica", id_, {"estado": "error", "error": "Se canceló el análisis."})
             else:
                 datos.actualizar("referencias", id_, {"estado": "error", "error": "Se canceló el análisis.", "creada": datos.ahora()})
         except Exception as error:  # cualquier fallo se cuenta en claro y no tumba la cola
@@ -125,6 +141,20 @@ def _trabajar() -> None:
         finally:
             _cancelados.discard(id_)
             _procesos.pop(id_, None)
+
+
+def _analizar_cancion(id_: str) -> None:
+    cancion = datos.uno("SELECT * FROM musica WHERE id = ?", (id_,))
+    if cancion is None:
+        return
+    datos.actualizar("musica", id_, {"estado": "analizando", "etapa": "Midiendo tempo, pulsos y energía"})
+    _revisar(id_)
+    try:
+        resultado = analisis_musical.analizar(datos.DATOS / cancion["archivo"])
+    except ValueError as error:
+        raise RuntimeError(str(error)) from error
+    _revisar(id_)
+    datos.actualizar("musica", id_, {"estado": "lista", "etapa": None, "error": None, "analisis": resultado})
 
 
 def _mensaje_claro(error: Exception, tipo: str = "trabajo") -> str:
@@ -140,12 +170,14 @@ def _mensaje_claro(error: Exception, tipo: str = "trabajo") -> str:
 
 
 def _registrar(tipo: str, id_: str, error: Exception) -> None:
-    base = carpeta_de_trabajo(id_) if tipo == "trabajo" else carpeta_de_referencia(id_)
+    base = carpeta_de_trabajo(id_) if tipo == "trabajo" else carpeta_de_referencia(id_) if tipo == "referencia" else carpeta_de_cancion(id_)
     base.mkdir(parents=True, exist_ok=True)
     (base / "registro.txt").write_text(traceback.format_exc(), encoding="utf-8")
     claro = _mensaje_claro(error, tipo)
     if tipo == "trabajo":
         datos.actualizar("trabajos", id_, {"estado": "error", "etapa": None, "error": claro, "mensaje": None, "eta": None, "actualizado": datos.ahora()})
+    elif tipo == "musica":
+        datos.actualizar("musica", id_, {"estado": "error", "error": claro, "etapa": None})
     else:
         datos.actualizar("referencias", id_, {"estado": "error", "error": claro, "etapa": None})
 
@@ -231,16 +263,50 @@ def _voz_en_cache(modelo: str) -> bool:
     return cache.exists() and any(cache.glob(f"models--*faster-whisper-{modelo}"))
 
 
+def _ficha_de_marca(carpeta: Path) -> tuple[str, str]:
+    """(nombre, texto de la ficha de la bóveda) de la marca; vacíos si es la carpeta neutra o no hay ficha."""
+    if carpeta.name == NEUTRA:
+        return "", ""
+    ficha = comun.boveda_empresa(carpeta) / "00-ficha.md"
+    try:
+        texto = ficha.read_text(encoding="utf-8") if ficha.exists() else ""
+    except OSError:
+        texto = ""
+    return comun.nombre(carpeta), re.sub(r"^---.*?---\s*", "", texto, count=1, flags=re.S).strip()
+
+
+def _biblioteca() -> list[dict]:
+    filas = datos.todos("SELECT * FROM musica WHERE activa = 1 AND estado = 'lista'")
+    return [{"id": f["id"], "titulo": f["titulo"], "licencia": f["licencia"], "archivo": datos.DATOS / f["archivo"], "analisis": f["analisis"]}
+            for f in filas if f["analisis"] and (datos.DATOS / f["archivo"]).exists()]
+
+
+def _elegir_cancion(energia: str | None, ritmo: str | None, duracion: float) -> dict | None:
+    pista = analisis_musical.elegir_pista(_biblioteca(), energia, ritmo)
+    if pista is None:
+        return None
+    a = pista["analisis"]
+    entrada = analisis_musical.punto_de_entrada(a, duracion)
+    inicio = entrada["inicio"]
+    limite = inicio + duracion
+    return {"id": pista["id"], "titulo": pista["titulo"], "licencia": pista["licencia"], "archivo": pista["archivo"], "inicio": inicio, "repetir": entrada["repetir"],
+            "lufs": (a.get("volumen") or {}).get("lufs"), "bpm": a["bpm"], "ritmo": a["ritmo"], "intensidad": a["intensidad"], "confianza": a["confianza"],
+            "caida_en": entrada["caida_en"],
+            "pulsos": [round(x - inicio, 3) for x in a["pulsos"] if inicio <= x <= limite],
+            "fuertes": [round(x - inicio, 3) for x in a["tiempos_fuertes"] if inicio <= x <= limite]}
+
+
 def _construir(id_: str) -> None:
     t = datos.uno("SELECT * FROM trabajos WHERE id = ?", (id_,))
     if t is None or not t["fuente_archivo"]:
         raise RuntimeError("Falta subir el video de este trabajo.")
     base = carpeta_de_trabajo(id_)
     config = interprete.efectivo(t["prompt"] or "", t["opciones"] or {})
-    pasos = ["preparar"] + (["pausas"] if config["quitar_pausas"] else []) + ["voz", "guion", "render", "final"]
+    pasos = ["preparar"] + (["pausas"] if config["quitar_pausas"] else []) + ["voz", "direccion", "guion", "render", "final", "revision"]
     avance = Avance(id_, pasos)
     inicio = datos.ahora()
-    datos.actualizar("trabajos", id_, {"estado": "trabajando", "error": None, "resultado": None, "fotogramas_listos": 0, "fotogramas_total": 0, "eta": None})
+    datos.actualizar("trabajos", id_, {"estado": "trabajando", "error": None, "resultado": None, "fotogramas_listos": 0, "fotogramas_total": 0, "eta": None,
+                                       "calidad": None, "plan": None, "ia_info": None, "musica_id": None})
 
     avance.poner("preparar", 0.1)
     fuente = datos.DATOS / t["fuente_archivo"]
@@ -267,6 +333,41 @@ def _construir(id_: str) -> None:
     (base / "analisis.json").write_text(json.dumps(analisis, ensure_ascii=False), encoding="utf-8")
     duracion = analisis["duracion"]
 
+    # Dirección: la ficha y el test de la marca, la música candidata y el plan (con IA, o por reglas)
+    avance.poner("direccion", 0.1, "Leyendo la ficha de la marca y tus preferencias")
+    marca_nombre, ficha = _ficha_de_marca(carpeta)
+    perfil_creativo = perfiles.leer(t["marca"])
+    referencia = _perfil_de_referencias(t["referencias"] or [])
+    palabras = [list(p) for p in (analisis.get("voz") or {}).get("palabras", [])]
+    contexto = {"brief": t["prompt"] or "", "duracion": duracion, "palabras": palabras, "ficha": ficha, "marca_nombre": marca_nombre,
+                "perfil": perfil_creativo, "referencia": referencia, "config": config, "vertical": bool(analisis.get("vertical", True)), "musica": None}
+    base_plan = planes.plan_base(contexto)
+    candidata = _elegir_cancion(base_plan["musica"]["energia"], base_plan["musica"]["ritmo"], duracion) if config["musica"] and base_plan["musica"]["usar"] else None
+    contexto["musica"] = candidata
+    notas_direccion: list[str] = []
+    resultado_ia = {"plan": None, "origen": "reglas", "motivo": None, "advertencias": [], "modelo": None, "uso": None, "costo_usd": None}
+    if config["ia"] and palabras:
+        avance.poner("direccion", 0.3, "Consultando al director con IA")
+        resultado_ia = ia.generar_plan(contexto, video)
+        _revisar(id_)
+    plan = resultado_ia["plan"] or base_plan
+    if resultado_ia["plan"]:
+        notas_direccion.append(f"Dirigido con IA ({ia.MODELOS.get(resultado_ia['modelo'], {}).get('nombre', resultado_ia['modelo'])})")
+    elif resultado_ia["motivo"]:
+        notas_direccion.append(f"Sin IA: {resultado_ia['motivo']} Usé las reglas.")
+    notas_direccion += resultado_ia["advertencias"]
+    elegida = None
+    if config["musica"] and plan["musica"]["usar"]:
+        elegida = _elegir_cancion(plan["musica"]["energia"], plan["musica"]["ritmo"], duracion)
+        if elegida is None and not _biblioteca():
+            notas_direccion.append("No usé música: tu biblioteca no tiene canciones listas.")
+        elif elegida:
+            notas_direccion.append(f"Música «{elegida['titulo']}» ({elegida['bpm']:.0f} BPM)")
+    datos.actualizar("trabajos", id_, {"plan": {**plan, "advertencias_ia": resultado_ia["advertencias"]}, "musica_id": elegida["id"] if elegida else None,
+                                       "ia_info": {"usada": bool(resultado_ia["plan"]), "modelo": resultado_ia["modelo"], "motivo": resultado_ia["motivo"],
+                                                   "uso": resultado_ia["uso"], "costo_usd": resultado_ia["costo_usd"]}})
+    avance.poner("direccion", 1.0, " · ".join(notas_direccion)[:600] or None)
+
     avance.poner("guion", 0.2, "Aplicando lo que aprendí de tus referencias" if t["referencias"] else None)
     enlace = carpeta / "videos" / "propios" / f"iris-{id_}.mp4"
     enlace.parent.mkdir(parents=True, exist_ok=True)
@@ -277,18 +378,21 @@ def _construir(id_: str) -> None:
         shutil.copy2(video, enlace)
     try:
         colores = _colores_de_marca(carpeta)
-        guion, notas = interprete.construir_guion(f"iris-{id_}", config, analisis, _perfil_de_referencias(t["referencias"] or []),
-                                                  colores, f"{carpeta.name}/videos/propios/{enlace.name}")
+        pulsos = {"pulsos": elegida["pulsos"], "fuertes": elegida["fuertes"], "confianza": elegida["confianza"]} if elegida else None
+        guion, notas = interprete.construir_guion(f"iris-{id_}", config, analisis, referencia, colores, f"{carpeta.name}/videos/propios/{enlace.name}",
+                                                  plan=plan, musica=pulsos, marca_nombre=marca_nombre)
+        notas = notas_direccion + notas
         (base / "guion.json").write_text(json.dumps(guion, ensure_ascii=False, indent=1), encoding="utf-8")
         datos.actualizar("trabajos", id_, {"notas": notas})
         avance.poner("guion", 1.0, " · ".join(notas)[:600])
         _renderizar(id_, base, carpeta, guion, duracion, avance)
-        _terminar(id_, base, video, analisis, duracion, carpeta, t, avance, inicio)
+        _terminar(id_, base, video, analisis, duracion, carpeta, t, avance, inicio, guion=guion, contexto=contexto, plan=plan, musica=elegida, config=config)
     finally:
         enlace.unlink(missing_ok=True)
         shutil.rmtree(base / "fotos", ignore_errors=True)
         shutil.rmtree(base / "render", ignore_errors=True)
         (base / "sin-pausas.mp4").unlink(missing_ok=True)
+        (base / "audio-final.m4a").unlink(missing_ok=True)
 
 
 def _colores_de_marca(carpeta: Path) -> dict:
@@ -345,14 +449,27 @@ def _preparar(carpeta: Path, base: Path):
         raise RuntimeError(str(error)) from error
 
 
-def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float, carpeta: Path, t: dict, avance: Avance, inicio: float) -> None:
-    avance.poner("final", 0.1, "Mezclando la voz")
+def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float, carpeta: Path, t: dict, avance: Avance, inicio: float,
+              guion: dict, contexto: dict, plan: dict, musica: dict | None, config: dict) -> None:
+    avance.poner("final", 0.1, "Limpiando la voz y nivelando el volumen")
     fotos = base / "fotos"
     archivos = sorted(f for f in os.listdir(fotos) if f.endswith(".jpeg"))
     digitos = len(re.search(r"(\d+)\.jpeg$", archivos[0]).group(1))
     salida = base / "resultado.mp4"
     entrada = ["-framerate", str(FPS), "-i", str(fotos / f"element-%0{digitos}d.jpeg")]
-    if analisis.get("audio") is not None:
+    tiene_voz = analisis.get("audio") is not None
+    audio_final = base / "audio-final.m4a"
+    nota_audio = None
+    try:
+        cancion = {"archivo": musica["archivo"], "inicio": musica["inicio"], "repetir": musica["repetir"], "lufs": musica["lufs"]} if musica else None
+        informe = mezcla.masterizar(video if tiene_voz else None, audio_final, duracion, cancion)
+    except RuntimeError as error:  # si la mezcla falla, el video sale con el audio original en vez de no salir
+        informe, nota_audio = None, f"No pude mezclar y nivelar el audio ({error}); dejé el sonido original."
+        audio_final.unlink(missing_ok=True)
+    if informe is not None and audio_final.exists():
+        entrada += ["-i", str(audio_final)]
+        mapa = ["-map", "0:v", "-map", "1:a", "-c:a", "copy"]
+    elif tiene_voz:
         entrada += ["-i", str(video)]
         mapa = ["-map", "0:v", "-map", "1:a", "-af", "apad", "-c:a", "aac", "-b:a", "192k"]
     else:
@@ -361,8 +478,18 @@ def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float
                         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(salida)], capture_output=True, text=True, errors="replace")
     if r.returncode != 0 or not salida.exists():
         raise RuntimeError("No pude unir el video y el sonido: " + (r.stderr.strip().splitlines() or ["error desconocido"])[-1])
-    avance.poner("final", 0.8, "Guardando")
+    avance.poner("final", 0.9, "Guardando")
     _miniatura(salida, base / "miniatura.jpg", min(1.0, duracion / 3))
+
+    avance.poner("revision", 0.2, "Midiendo volumen, picos, negros y zonas seguras")
+    try:
+        informe_calidad = calidad.revisar(salida, guion, contexto, plan, musica, bool(config.get("borrador")))
+    except Exception as error:  # noqa: BLE001 - revisar no debe impedir entregar el video
+        informe_calidad = {"veredicto": "revisar", "resumen": "No pude completar la revisión automática.", "pruebas": [
+            {"id": "revision", "nivel": "aviso", "texto": f"No pude completar la revisión automática ({type(error).__name__})."}]}
+    if nota_audio:
+        informe_calidad["pruebas"].insert(0, {"id": "mezcla", "nivel": "aviso", "texto": nota_audio})
+        informe_calidad["veredicto"] = "revisar" if informe_calidad["veredicto"] == "listo" else informe_calidad["veredicto"]
     nombre = comun.seguro(t["titulo"] or "video") or "video"
     copia = carpeta / "salidas" / f"{nombre}-{id_[:6]}.mp4"
     copia.parent.mkdir(parents=True, exist_ok=True)
@@ -372,4 +499,4 @@ def _terminar(id_: str, base: Path, video: Path, analisis: dict, duracion: float
     except OSError:
         shutil.copy2(salida, copia)
     datos.actualizar("trabajos", id_, {"estado": "listo", "etapa": None, "progreso": 1.0, "mensaje": f"Listo en {round(datos.ahora() - inicio)} s", "eta": None,
-                                      "resultado": "resultado.mp4", "actualizado": datos.ahora()})
+                                      "resultado": "resultado.mp4", "calidad": informe_calidad, "actualizado": datos.ahora()})

@@ -9,7 +9,8 @@ from comun import EMPRESAS, TIPOS, correr, seguro
 
 ESCENAS = {"gancho", "contenido", "cta", "pantalla"}
 CAPAS = {"contador": ("desde", "hasta"), "insignia": ("numero",), "tarjeta": ("variante",), "mira": (),
-         "texto-curvo": ("texto",), "palabra": ("texto",)}
+         "texto-curvo": ("texto",), "palabra": ("texto",), "titulo": ("texto",)}
+LOOKS = {"natural", "calido", "frio", "cine", "vibrante"}
 VARIANTES = {"comentario", "notificacion", "estadistica", "foto"}
 DISENOS = {"pleno", "antes-despues"}
 
@@ -103,6 +104,12 @@ def revisar(props: dict) -> list[str]:
     for i, s in enumerate(props.get("subtitulos", []), 1):
         if not (_numero(s.get("ini")) and _numero(s.get("fin")) and s["ini"] < s["fin"] and isinstance(s.get("texto"), str)):
             errores.append(f"subtítulo {i}: necesita ini < fin y texto")
+    acabado = props.get("acabado")
+    if acabado is not None and not (isinstance(acabado, dict) and acabado.get("look") in LOOKS):
+        errores.append(f"'acabado' necesita un 'look' de: {', '.join(sorted(LOOKS))}")
+    pulso = props.get("pulso")
+    if pulso is not None and not (isinstance(pulso, dict) and isinstance(pulso.get("tiempos"), list) and all(_numero(x) for x in pulso["tiempos"])):
+        errores.append("'pulso' necesita 'tiempos': una lista de segundos")
     palabras = props.get("palabras", [])
     malas = [i for i, p in enumerate(palabras, 1) if not (isinstance(p, list) and len(p) == 3 and _numero(p[0]) and _numero(p[1]) and isinstance(p[2], str))]
     if malas:

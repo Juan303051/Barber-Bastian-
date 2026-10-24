@@ -43,10 +43,20 @@ La primera vez, git te pedirá iniciar sesión en GitHub. Lo más fácil es inst
 1. En la Terminal, dentro de `creador-videos`: `./creador app`. Se abre el navegador. **Deja esa ventana de la Terminal abierta** mientras trabajas.
 2. La primera vez, crea tu cuenta (nombre, correo y contraseña). Las siguientes, entra con ellas. Si olvidas la contraseña: `./creador cuenta restablecer tu@correo.com`.
 3. **Referencias:** suelta uno o varios videos que te gusten (o pega un enlace; si la red no deja descargarlo, sube el archivo). Iris aprende su ritmo.
-4. **Tus videos:** suelta la toma, escribe qué quieres con tus palabras (por ejemplo «subtítulos dinámicos, resalta dinero y gratis, quita las pausas y cierra pidiendo que comenten EDITOR») y mira «Esto entendí»: ahí ves qué hará y qué no puede hacer todavía. Los botones de abajo escriben frases por ti.
-5. Pulsa **Crear video** (o «Crear N videos» arriba para todos a la vez). Verás el video construyéndose. Cuando termine, mira el resultado y descárgalo. Si algo no te gusta, «Cambiar y volver a crear».
-6. Para probar rápido, activa «Borrador rápido» en Opciones avanzadas: sale a mitad de tamaño. El resultado siempre es un borrador que tú revisas antes de publicar.
+4. **Música (opcional):** suelta tus canciones. Iris mide su pulso y energía solo. **Declara la licencia de cada una** (propia, comprada o de la biblioteca de música comercial de tu plataforma); con «sin confirmar», el video sale como borrador y no debes publicarlo.
+5. **Test del director (2 minutos, una vez por marca):** en el aviso de arriba o en el menú de tu avatar. Son diez preguntas: tono, ritmo, música, acabado, qué nunca debe aparecer… Iris las usa en cada video.
+6. **IA (opcional):** menú de tu avatar → «Director con IA…». Pega tu clave de Anthropic y pulsa «Probar conexión». Con IA, un director propone el gancho, qué resaltar y el acabado; sin IA, Iris usa reglas y el resultado sigue saliendo. Lee ahí mismo qué se envía y cuánto cuesta.
+7. **Tus videos:** suelta la toma, escribe qué quieres con tus palabras (por ejemplo «subtítulos dinámicos, resalta dinero y gratis, quita las pausas y cierra pidiendo que comenten EDITOR») y mira «Esto entendí»: ahí ves qué hará y qué no puede hacer todavía. Los botones de abajo escriben frases por ti.
+8. Pulsa **Crear video** (o «Crear N videos» arriba para todos a la vez). Verás el video construyéndose. Cuando termine, lee el **informe de calidad** (qué está en orden y qué revisar) y **cómo lo dirigió Iris**; mira el resultado y descárgalo. Si algo no te gusta, «Cambiar y volver a crear».
+9. Para probar rápido, activa «Borrador rápido» en Opciones avanzadas: sale a mitad de tamaño. El resultado siempre es un borrador que tú revisas antes de publicar.
 Para cerrar la app: Control + C en la Terminal.
+
+### Pasar Iris al celular (Android, por cable)
+1. En el Mac, una vez: `brew install --cask android-platform-tools`.
+2. En el celular: Ajustes → Acerca del teléfono → toca 7 veces «Número de compilación»; luego Opciones de desarrollador → activa «Depuración por USB».
+3. Conecta el cable, acepta el aviso del celular («Permitir depuración por USB») y ejecuta en el Mac: `./creador celular`.
+4. El celular abre Iris por el cable. En Chrome: menú ⋮ → «Añadir a la pantalla de inicio». Deja la Terminal abierta mientras lo uses.
+Con **iPhone** no hay una vía equivalente por cable que mantenga Iris solo en tu computador: dime si quieres una versión instalable y la preparamos.
 
 ## 8. Crear un video desde la Terminal (avanzado)
 1. Pon tu toma (la persona hablando a cámara) en `empresas/<empresa>/videos/propios/` y analízala: `./creador analizar --empresa <empresa>`.
@@ -64,7 +74,10 @@ Para ver qué piezas existen, prueba los ejemplos: `./creador render remotion/ej
 | Cualquier cosa rara | `./creador probar` y seguir lo que diga |
 | La página de la app dice «No puedo hablar con Iris» | La ventana de la Terminal con `./creador app` se cerró: ábrela de nuevo |
 | «Demasiados intentos» al entrar | Espera los minutos que indica, o restablece la contraseña con `./creador cuenta restablecer` |
-| Un video de la app queda en «interrumpido» | Se cerró la app mientras trabajaba: pulsa «Intentar de nuevo» |
+| Un video de la app queda en «interrumpido» | Se cerró la app mientras trabajaba (o el archivo del video se borró): pulsa «Intentar de nuevo» |
+| «Sin IA: …» en las notas de un video | La IA falló por la razón que dice (clave, saldo, internet): el video salió igual con reglas. Revisa «Director con IA…» en el menú de tu avatar |
+| El informe de calidad dice «licencia sin confirmar» | Declara la licencia de esa canción en la sección Música; si no la tienes, no publiques ese video |
+| `./creador celular` dice que no ve el celular | Revisa el cable, activa «Depuración por USB» y acepta el aviso en la pantalla del celular |
 | «Falta instalar» | `./instalar.sh` |
 | «Sign in to confirm you're not a bot» (YouTube) o «login required» (Instagram) | Repite con `--cookies-navegador safari` (o `chrome`) con la sesión abierta en ese navegador |
 | «Your IP address is blocked» (TikTok) | Descarga el video desde el teléfono y cópialo a `videos/referencias/` |

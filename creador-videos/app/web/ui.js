@@ -7,7 +7,7 @@ const contenedorAvisos = () => document.getElementById("avisos");
 export function aviso(texto, { tipo = "info", accion = null, duracion = 5000 } = {}) {
   const botonAccion = accion ? el("button", { clase: "boton suave pequeno", texto: accion.texto }) : null;
   const cerrar = () => { nodo.remove(); clearTimeout(temporizador); };
-  const nodo = el("div", { clase: `aviso vidrio ${tipo === "error" ? "error" : ""}` },
+  const nodo = el("div", { clase: `emergente vidrio ${tipo === "error" ? "error" : ""}` },
     el("span", { clase: "estado-texto" }, tipo === "error" ? icono("aviso") : null, texto), botonAccion);
   botonAccion?.addEventListener("click", () => { accion.alHacer(); cerrar(); });
   contenedorAvisos().append(nodo);

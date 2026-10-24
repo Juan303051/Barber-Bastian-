@@ -2,24 +2,30 @@ import { ReactNode, useMemo } from "react";
 import { AbsoluteFill, Audio, OffthreadVideo, Sequence, Series, useCurrentFrame, useVideoConfig } from "remotion";
 import { resolverMarca } from "./defecto";
 import { VistaEscena } from "./escenas";
-import { paginar, zoomEn } from "./logica";
+import { escalaPorPulso, filtroDeAcabado, paginar, zoomEn } from "./logica";
 import { Colocada, VistaCapa } from "./piezas";
 import { SubtitulosPalabras } from "./subtitulos";
 import { FPS, Marca, Props, fotogramas } from "./tipos";
 import { recurso, useUnidad } from "./util";
 
-const BaseContinua = ({ base, zooms, silenciar }: { base: NonNullable<Props["base"]>; zooms: Props["zooms"]; silenciar: boolean }) => {
+type BaseProps = { base: NonNullable<Props["base"]>; zooms: Props["zooms"]; silenciar: boolean; acabado: Props["acabado"]; pulso: Props["pulso"] };
+
+const BaseContinua = ({ base, zooms, silenciar, acabado, pulso }: BaseProps) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const { escala, x, y } = zoomEn(frame / fps, zooms);
+  const t = frame / fps;
+  const { escala, x, y } = zoomEn(t, zooms);
+  const { filtro, vineta } = filtroDeAcabado(acabado);
+  const latido = pulso ? escalaPorPulso(t, pulso.tiempos, pulso.intensidad) : 1;
   return (
     <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
       <OffthreadVideo
         src={recurso(base.clip)}
         startFrom={Math.round((base.desde ?? 0) * fps)}
         muted={silenciar}
-        style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${escala})`, transformOrigin: `${x}% ${y}%` }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${escala * latido})`, transformOrigin: `${x}% ${y}%`, filter: filtro }}
       />
+      {vineta > 0 && <AbsoluteFill style={{ background: `radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,${vineta}) 100%)` }} />}
     </AbsoluteFill>
   );
 };
@@ -57,7 +63,9 @@ const Cuerpo = ({ props, marca, silenciarBase }: { props: Props; marca: Marca; s
     <AbsoluteFill
       style={{ background: props.base ? marca.colores.fondo : `radial-gradient(circle at 50% 35%, ${marca.colores.acento}33, ${marca.colores.fondo} 70%)` }}
     >
-      {props.base && <BaseContinua base={props.base} zooms={props.zooms} silenciar={silenciarBase || (props.base.silenciar ?? false)} />}
+      {props.base && (
+        <BaseContinua base={props.base} zooms={props.zooms} silenciar={silenciarBase || (props.base.silenciar ?? false)} acabado={props.acabado} pulso={props.pulso} />
+      )}
       <Series>
         {(props.escenas ?? []).filter((e) => e.ini === undefined).map((escena, i) => {
           const duracion = fotogramas(escena.duracion, fps);

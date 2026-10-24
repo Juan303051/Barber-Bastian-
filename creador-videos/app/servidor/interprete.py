@@ -1,13 +1,17 @@
 """Convierte lo que escribe la persona (y lo que Iris oyó en el video) en un guion de Remotion.
 
-No usa inteligencia artificial: reconoce frases frecuentes en español y detecta en la transcripción pasos numerados,
-cifras y la palabra que se pide comentar. Todo lo que entiende se lo cuenta de vuelta a la persona.
+Este es el intérprete por reglas: reconoce frases frecuentes en español y detecta en la transcripción pasos numerados,
+cifras y la palabra que se pide comentar. La IA (si está activa) propone un plan aparte (ver `direccion/`) que se mezcla con esto.
+Todo lo que entiende se lo cuenta de vuelta a la persona.
 """
 from __future__ import annotations
 
 import re
 
+from musica import pulso_mas_cercano
+
 from .logica_texto import normalizar
+
 
 ORDINALES = {"primero": 1, "primer": 1, "segundo": 2, "tercero": 3, "tercer": 3, "cuarto": 4, "quinto": 5,
              "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
@@ -18,7 +22,6 @@ COLORES = {"rojo": "#FF3B30", "naranja": "#FF9500", "amarillo": "#FFCC00", "verd
            "azul": "#0A84FF", "morado": "#AF52DE", "violeta": "#AF52DE", "rosa": "#FF2D55", "rosado": "#FF2D55", "blanco": "#FFFFFF"}
 # Cosas que la persona puede pedir y que Iris todavía no hace: se le dice claro en vez de ignorarlas.
 PENDIENTES = [
-    (r"\bmusica\b|\bcancion\b", "Música de fondo: todavía no puedo añadirla."),
     (r"\btransicion|\btransiciones\b", "Transiciones con efecto: todavía no están disponibles."),
     (r"detras de (la|el)\b|\btexto detras\b", "Texto detrás de la persona: todavía no lo hago de forma automática."),
     (r"efectos? de sonido|\bwhoosh\b", "Efectos de sonido: todavía no los añado."),
@@ -74,6 +77,10 @@ def leer_prompt(prompt: str) -> dict:
         leido["sugerencias"]["formato"] = "antes-despues"
     if re.search(r"(quita|quitar|elimina|eliminar|corta|cortar|saca|sacar|remueve)\s+(las\s+|los\s+)?(pausas|silencios)|sin\s+(pausas|silencios)", plano):
         leido["sugerencias"]["quitar_pausas"] = True
+    if re.search(r"\bsin\s+(la\s+)?(musica|cancion)", plano):
+        leido["sugerencias"]["musica"] = False
+    elif re.search(r"\b(con|pon|poner|agrega|agregar|anade|anadir)\s+(la\s+|una\s+)?(musica|cancion)|musica\s+de\s+fondo", plano):
+        leido["sugerencias"]["musica"] = True
     leido["pendiente"] = [aviso for patron, aviso in PENDIENTES if re.search(patron, plano)]
     return leido
 
@@ -98,6 +105,9 @@ def efectivo(prompt: str, opciones: dict) -> dict:
         "color_referencias": bool(opciones.get("color_referencias", False)),
         "idioma": opciones.get("idioma") or None,
         "borrador": opciones.get("calidad") == "borrador",
+        "musica": bool(opciones.get("musica", True)),
+        "acabado": opciones.get("acabado") or "auto",
+        "ia": bool(opciones.get("ia", True)),
         "claves": leido["claves"],
         "cta": leido["cta"],
         "posicion": leido["posicion"],
@@ -123,6 +133,9 @@ def resumen(config: dict) -> list[dict]:
         filas.append({"icono": "texto", "texto": f"Subtítulos {config['posicion']}"})
     if config["acento"]:
         filas.append({"icono": "color", "texto": f"Color principal {config['acento']}"})
+    filas.append({"icono": "musica", "texto": "Música de fondo de tu biblioteca, con la voz siempre por delante" if config["musica"] else "Sin música"})
+    if config["acabado"] != "auto":
+        filas.append({"icono": "color", "texto": f"Acabado de color: {config['acabado']}"})
     return filas
 
 
@@ -210,12 +223,33 @@ def _cierre(palabras: list, duracion: float, cta_pedido: str | None) -> tuple[st
     return None, None
 
 
-def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | None, colores_marca: dict, base_clip: str) -> tuple[dict, list[str]]:
-    """Guion de Remotion y la lista de lo que se aplicó (para contárselo a la persona)."""
+def _frases(palabras: list) -> list[tuple[float, float]]:
+    """(inicio, fin) de cada frase dicha, según los signos de la transcripción."""
+    frases, inicio = [], None
+    for i, (ini, fin, texto) in enumerate(palabras):
+        inicio = ini if inicio is None else inicio
+        if re.search(r"[.?!]$", texto.strip()) or i == len(palabras) - 1:
+            frases.append((inicio, fin))
+            inicio = None
+    return frases
+
+
+def _tamano_titulo(texto: str) -> int:
+    return 96 if len(texto) <= 24 else 84 if len(texto) <= 36 else 74
+
+
+def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | None, colores_marca: dict, base_clip: str,
+                    plan: dict | None = None, musica: dict | None = None, marca_nombre: str = "") -> tuple[dict, list[str]]:
+    """Guion de Remotion y la lista de lo que se aplicó (para contárselo a la persona).
+
+    `plan`: lo que decidió el director (con IA o por reglas, ya saneado). `musica`: pulsos de la canción elegida ya medidos desde
+    el inicio del video, `{"pulsos": [...], "fuertes": [...], "confianza": 0.7}`; con ellos los acercamientos se apoyan en el pulso.
+    """
     duracion = round(float(analisis["duracion"]), 2)
     voz = analisis.get("voz") or {}
     palabras = [list(p) for p in voz.get("palabras", [])]
     notas: list[str] = []
+    plan = plan or {}
 
     guion: dict = {"formato": nombre, "diseno": "antes-despues" if config["formato"] == "antes-despues" else "pleno",
                    "base": {"clip": base_clip}, "duracion": duracion, "escenas": [], "capas": [], "zooms": []}
@@ -237,6 +271,12 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
     if colores:
         guion["marca"] = {"colores": colores}
 
+    acabado = plan.get("acabado")
+    if acabado and config.get("acabado", "auto") != "ninguno":
+        look = config.get("acabado") if config.get("acabado") in ("natural", "calido", "frio", "cine", "vibrante") else acabado["look"]
+        guion["acabado"] = {"look": look, "intensidad": acabado["intensidad"]}
+        notas.append(f"Acabado de color «{look}»")
+
     if not palabras:
         notas.append("No encontré voz en el video: apliqué solo lo visual.")
         return guion, notas
@@ -244,6 +284,8 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
     cierre_clave, cierre_ini = (None, None)
     if config["cierre"]:
         cierre_clave, cierre_ini = _cierre(palabras, duracion, config["cta"])
+        if cierre_clave is None and (plan.get("cierre") or {}).get("clave"):
+            cierre_clave, cierre_ini = plan["cierre"]["clave"], max(0.0, duracion - 3.5)
     if cierre_clave and cierre_ini is not None:
         inicio = min(cierre_ini, max(0.0, duracion - 2.5))
         guion["escenas"].append({"tipo": "cta", "ini": round(inicio, 2), "duracion": round(duracion - inicio, 2), "clave": cierre_clave})
@@ -253,6 +295,8 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
     maximo = config["max_palabras"] or (perfil or {}).get("maxPalabras") or 3
     guion["palabras"] = palabras
     claves = list(config["claves"])
+    vistas = {normalizar(c) for c in claves}
+    claves += [c for c in plan.get("claves", []) if normalizar(c) not in vistas]
     cifras = [t for _i, _f, t in palabras if _valor(t) is not None]
     guion["estiloPalabras"] = {"maxPalabras": maximo, "claves": claves + [c.strip("$%") for c in cifras][:12], "serif": [],
                                "posicion": config["posicion"] or ("abajo" if config["formato"] == "antes-despues" else "centro")}
@@ -260,18 +304,45 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
     if claves:
         notas.append("Palabras en grande: " + ", ".join(claves))
 
+    gancho = (plan.get("gancho") or {}).get("texto")
+    fin_gancho = 0.0
+    if gancho:
+        fin_gancho = round(min(3.2, max(1.8, duracion * 0.4)), 2)
+        guion["capas"].append({"tipo": "titulo", "ini": 0.15, "fin": fin_gancho, "x": 50, "y": 25, "texto": gancho, "tamano": _tamano_titulo(gancho)})
+        notas.append(f"Gancho en pantalla: «{gancho}»")
+
+    frases = _frases(palabras)
     if config["acercamientos"]:
         cada = (perfil or {}).get("zoom_cada") or 2
-        zooms, inicio, frase = [], None, 0
-        for i, (ini, fin, texto) in enumerate(palabras):
-            inicio = ini if inicio is None else inicio
-            if re.search(r"[.?!]$", texto.strip()) or i == len(palabras) - 1:
-                if frase % cada == cada - 1 and fin - inicio >= 1.0:
-                    zooms.append({"ini": round(inicio, 2), "fin": round(fin, 2), "escala": 1.22, "x": 50, "y": 38})
-                frase, inicio = frase + 1, None
+        espacio = plan.get("segundos_entre_acercamientos")
+        if espacio and cada == 1:
+            espacio *= 0.75  # las referencias que elegiste cortan rápido
+        zooms, ultimo_fin = [], -99.0
+        elegidas = [m for m in plan.get("momentos", []) if m["tipo"] == "acercamiento"] if plan.get("origen") == "ia" else []
+        if elegidas:
+            for m in elegidas:
+                frase = next(((a, b) for a, b in frases if a - 0.2 <= m["t"] <= b), None)
+                if frase and frase[1] - frase[0] >= 1.0 and frase[0] - ultimo_fin >= 1.0:
+                    zooms.append({"ini": round(frase[0], 2), "fin": round(frase[1], 2), "escala": 1.22, "x": 50, "y": 38})
+                    ultimo_fin = frase[1]
+        elif espacio:
+            for a, b in frases:
+                if b - a >= 1.0 and a - ultimo_fin >= max(1.0, espacio - 1.2):
+                    zooms.append({"ini": round(a, 2), "fin": round(b, 2), "escala": 1.22, "x": 50, "y": 38})
+                    ultimo_fin = b
+        else:
+            for k, (a, b) in enumerate(frases):
+                if k % cada == cada - 1 and b - a >= 1.0:
+                    zooms.append({"ini": round(a, 2), "fin": round(b, 2), "escala": 1.22, "x": 50, "y": 38})
+        if musica and musica["confianza"] >= 0.55:
+            rejilla = musica["fuertes"] or musica["pulsos"]
+            for z in zooms:
+                nuevo = pulso_mas_cercano(z["ini"], rejilla, 0.18)
+                if nuevo < z["fin"] - 0.8:
+                    z["ini"] = round(nuevo, 2)
         guion["zooms"] = zooms
         if zooms:
-            notas.append(f"{len(zooms)} acercamientos para dar ritmo")
+            notas.append(f"{len(zooms)} acercamientos para dar ritmo" + (" apoyados en el pulso de la música" if musica and musica["confianza"] >= 0.55 else ""))
 
     if config["insignias"]:
         pasos = _pasos(palabras)
@@ -283,7 +354,28 @@ def construir_guion(nombre: str, config: dict, analisis: dict, perfil: dict | No
 
     if config["contadores"]:
         contadores = _contadores(palabras, duracion)
+        for m in plan.get("momentos", []):
+            if m["tipo"] == "contador" and all(abs(m["t"] - c["ini"]) > 2.5 for c in contadores) and len(contadores) < 3:
+                contadores.append({"tipo": "contador", "ini": m["t"], "fin": round(min(duracion, m["t"] + 2.4), 2), "x": 50, "y": 20,
+                                   "desde": 0, "hasta": m["valor"], "prefijo": "", "sufijo": "", "tamano": 130})
+        for c in contadores:
+            if c["ini"] < fin_gancho:
+                c["y"] = 38  # no tapar el gancho
         guion["capas"] += contadores
         if contadores:
             notas.append(f"{len(contadores)} contador(es) para cifras que dices")
+
+    tarjetas = [m for m in plan.get("momentos", []) if m["tipo"] == "tarjeta"]
+    puestas = 0
+    for m in tarjetas[:3]:
+        fin = round(min(duracion, m["t"] + 3.0), 2)
+        if all(c["fin"] <= m["t"] or c["ini"] >= fin for c in guion["capas"] if c["tipo"] in ("tarjeta", "contador")):
+            guion["capas"].append({"tipo": "tarjeta", "variante": "notificacion", "ini": m["t"], "fin": fin, "x": 50, "y": 58,
+                                   "nombre": marca_nombre, "texto": m["texto"]})
+            puestas += 1
+    if puestas:
+        notas.append(f"{puestas} tarjeta(s) con frases de tu video")
+
+    if musica and plan.get("acabado", {}).get("pulso") and musica["confianza"] >= 0.55 and musica["fuertes"]:
+        guion["pulso"] = {"tiempos": [round(t, 3) for t in musica["fuertes"]], "intensidad": 0.5}
     return guion, notas

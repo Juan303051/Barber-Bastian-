@@ -1,4 +1,4 @@
-"""Punto de entrada: ./creador app | cuenta | preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
+"""Punto de entrada: ./creador app | celular | director | cuenta | musica | preparar | probar | descargar | analizar | informe | todo | validar | guion | render | estudio"""
 from __future__ import annotations
 
 import argparse
@@ -9,9 +9,9 @@ from comun import RAIZ, asegurar_carpetas, empresas, nombre
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="creador", description=__doc__)
-    ap.add_argument("accion", choices=["app", "cuenta", "preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
+    ap.add_argument("accion", choices=["app", "celular", "director", "cuenta", "musica", "preparar", "probar", "descargar", "analizar", "informe", "todo", "validar", "guion", "render", "estudio"])
     ap.add_argument("guion", nargs="?", help="render/estudio: nombre del guion en empresas/<empresa>/formatos/ o ruta a un .json; guion: nombre del archivo de video")
-    ap.add_argument("segundo", nargs="?", help="cuenta: el correo (./creador cuenta restablecer tu@correo.com)")
+    ap.add_argument("segundo", nargs="?", help="cuenta: el correo (./creador cuenta restablecer tu@correo.com); musica: dónde guardar el análisis completo (.json); celular: no se usa")
     ap.add_argument("--empresa", help="carpeta de la empresa (por defecto, todas)")
     ap.add_argument("--solo-metadatos", action="store_true", help="descargar: solo vistas, likes y textos, sin el video")
     ap.add_argument("--cookies-navegador", metavar="NAVEGADOR", help="descargar: safari, chrome, firefox… (para videos que piden sesión)")
@@ -28,10 +28,35 @@ def main() -> int:
     a = ap.parse_args()
     asegurar_carpetas()
 
-    if a.accion in ("app", "cuenta"):
+    if a.accion in ("app", "cuenta", "celular", "director"):
         sys.path.insert(0, str(RAIZ / "app"))
+        if a.accion == "director":
+            from servidor import autoevaluacion
+            return autoevaluacion.correr()
         from servidor import arranque
+        if a.accion == "celular":
+            return arranque.celular(a.guion)
         return arranque.iniciar(not a.sin_navegador) if a.accion == "app" else arranque.cuentas(a.guion, a.segundo)
+
+    if a.accion == "musica":
+        if not a.guion:
+            ap.error("musica necesita el archivo: ./creador musica cancion.mp3")
+        import json
+        from pathlib import Path
+        import musica
+        try:
+            analisis = musica.analizar(Path(a.guion).expanduser())
+        except ValueError as error:
+            print(f"No se pudo analizar: {error}")
+            return 1
+        print(f"{analisis['archivo']}: {musica.resumen(analisis)}")
+        print("Secciones:", ", ".join(f"{s['ini']:.1f}s {s['nivel']}" for s in analisis["secciones"]))
+        if analisis["caidas"]:
+            print("Caídas hacia sección fuerte en:", ", ".join(f"{c:.1f}s" for c in analisis["caidas"]))
+        if a.segundo:
+            Path(a.segundo).expanduser().write_text(json.dumps(analisis, ensure_ascii=False), encoding="utf-8")
+            print(f"Análisis completo guardado en {a.segundo}")
+        return 0
 
     if a.accion == "preparar":
         print("Carpetas listas: en cada empresa ya puedes soltar videos en videos/referencias/ y videos/propios/.")

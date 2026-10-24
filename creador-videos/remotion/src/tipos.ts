@@ -87,11 +87,18 @@ export type Capa = (
   | { tipo: "mira"; etiqueta?: string; radio?: number }
   | { tipo: "texto-curvo"; texto: string; forma?: "arco" | "onda"; tamano?: number; color?: string }
   | { tipo: "palabra"; texto: string; serif?: boolean; color?: string; tamano?: number }
+  | { tipo: "titulo"; texto: string; color?: string; tamano?: number }
 ) &
   Tiempo &
   Posicion;
 
 export type Zoom = { ini: number; fin: number; escala: number; x?: number; y?: number };
+
+/** Acabado de color de la toma base. `intensidad` va de 0 (sin efecto) a 1. */
+export type Acabado = { look: "natural" | "calido" | "frio" | "cine" | "vibrante"; intensidad?: number };
+
+/** Latido sutil sobre la música: un pequeño acercamiento que se relaja en cada tiempo fuerte (segundos del video). */
+export type Pulso = { tiempos: number[]; intensidad?: number };
 
 export type Props = {
   formato: string;
@@ -108,6 +115,8 @@ export type Props = {
   duracion?: number;
   escenas?: Escena[];
   zooms?: Zoom[];
+  acabado?: Acabado;
+  pulso?: Pulso;
   capas?: Capa[];
   subtitulos?: Subtitulo[];
   palabras?: PalabraT[];

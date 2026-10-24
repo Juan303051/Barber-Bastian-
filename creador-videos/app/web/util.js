@@ -75,6 +75,10 @@ export function esVideo(archivo) {
   return /\.(mp4|mov|m4v|webm|mkv)$/i.test(archivo.name);
 }
 
+export function esAudio(archivo) {
+  return /\.(mp3|wav|m4a|aac|flac|ogg|opus)$/i.test(archivo.name);
+}
+
 export function iniciales(nombre) {
   return (nombre || "?").trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 }

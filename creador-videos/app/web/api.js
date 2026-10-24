@@ -45,6 +45,13 @@ export const api = {
   trabajoBorrar: (id) => pedir("DELETE", `/api/trabajos/${id}`),
   crear: (id) => pedir("POST", `/api/trabajos/${id}/crear`, {}),
   cancelar: (id) => pedir("POST", `/api/trabajos/${id}/cancelar`, {}),
+  musicaCambiar: (id, cambios) => pedir("PATCH", `/api/musica/${id}`, cambios),
+  musicaBorrar: (id) => pedir("DELETE", `/api/musica/${id}`),
+  ia: () => pedir("GET", "/api/ia"),
+  iaGuardar: (cambios) => pedir("PUT", "/api/ia", cambios),
+  iaProbar: () => pedir("POST", "/api/ia/probar", {}),
+  perfil: (marca) => pedir("GET", `/api/perfil?marca=${encodeURIComponent(marca || "")}`),
+  perfilGuardar: (marca, respuestas) => pedir("PUT", "/api/perfil", { marca: marca || null, respuestas }),
 };
 
 /** Sube un video como flujo (PUT) con avance real; devuelve una promesa y permite cancelar. */

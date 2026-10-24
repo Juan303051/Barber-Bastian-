@@ -44,7 +44,8 @@ def _entorno(r: Resultado) -> None:
                "brew install ffmpeg")
     for modulo, nombre in (("yt_dlp", "yt-dlp (descargas)"), ("faster_whisper", "faster-whisper (voz a texto)"),
                            ("yaml", "PyYAML (propiedades de las notas)"),
-                           ("fastapi", "FastAPI (la app Iris)"), ("uvicorn", "Uvicorn (servidor de la app Iris)")):
+                           ("fastapi", "FastAPI (la app Iris)"), ("uvicorn", "Uvicorn (servidor de la app Iris)"),
+                           ("numpy", "NumPy (análisis de música)"), ("anthropic", "SDK de Anthropic (el director con IA)")):
         r.paso(nombre, importlib.util.find_spec(modulo) is not None, "", "ejecuta ./instalar.sh")
     for programa in ("node", "npx"):
         r.paso(f"{programa} (Remotion)", shutil.which(programa) is not None, shutil.which(programa) or "",
@@ -182,12 +183,14 @@ def _remotion(r: Resultado, temporal: Path) -> None:
 
 def _app(r: Resultado, completo: bool) -> None:
     print("\n7. App Iris: piezas, cuentas, seguridad, subida" + (" y un video completo" if completo else "") + " (todo en una carpeta temporal)")
-    faltan = [m for m in ("fastapi", "uvicorn", "httpx") if importlib.util.find_spec(m) is None]
+    faltan = [m for m in ("fastapi", "uvicorn", "httpx", "numpy", "anthropic") if importlib.util.find_spec(m) is None]
     if faltan:
         r.paso("componentes de la app", False, ", ".join(faltan), "ejecuta ./instalar.sh")
         return
     entorno = {**os.environ, "PYTHONPATH": str(RAIZ / "herramientas")}
     pruebas = (("piezas de la app (interprete, pausas, estilo, seguridad)", ["-m", "servidor.pruebas"]),
+               ("música, mezcla y volumen con audio de resultado conocido", ["-m", "servidor.pruebas_audio"]),
+               ("el director: perfil, límites contra invenciones, rúbrica, IA simulada y control de calidad", ["-m", "servidor.pruebas_direccion"]),
                ("la app de punta a punta", ["-m", "servidor.pruebas_api", *(["--completo"] if completo else [])]))
     for titulo, argumentos in pruebas:
         resultado = subprocess.run([sys.executable, *argumentos], cwd=RAIZ / "app", env=entorno, capture_output=True, text=True)

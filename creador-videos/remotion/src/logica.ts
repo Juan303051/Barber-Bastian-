@@ -81,3 +81,34 @@ export function trayecto(forma: "arco" | "onda", ancho: number, alto: number) {
   }
   return `M ${ancho * 0.05} ${alto * 0.9} Q ${ancho / 2} ${-alto * 0.5}, ${ancho * 0.95} ${alto * 0.9}`;
 }
+
+/** Filtro CSS del acabado de color y fuerza de la viñeta (0–1). Efectos suaves: la intensidad los escala desde 0. */
+export function filtroDeAcabado(acabado?: { look: string; intensidad?: number }) {
+  if (!acabado) return { filtro: "none", vineta: 0 };
+  const k = Math.min(1, Math.max(0, acabado.intensidad ?? 0.5));
+  const r = (v: number) => Math.round(v * 1000) / 1000;
+  switch (acabado.look) {
+    case "calido":
+      return { filtro: `contrast(${r(1 + 0.05 * k)}) saturate(${r(1 + 0.08 * k)}) sepia(${r(0.16 * k)}) brightness(${r(1 + 0.02 * k)})`, vineta: 0.1 * k };
+    case "frio":
+      return { filtro: `contrast(${r(1 + 0.06 * k)}) saturate(${r(1 - 0.05 * k)}) hue-rotate(${r(8 * k)}deg) brightness(${r(1 + 0.01 * k)})`, vineta: 0.1 * k };
+    case "cine":
+      return { filtro: `contrast(${r(1 + 0.14 * k)}) saturate(${r(1 - 0.1 * k)}) brightness(${r(1 - 0.04 * k)})`, vineta: 0.38 * k };
+    case "vibrante":
+      return { filtro: `contrast(${r(1 + 0.08 * k)}) saturate(${r(1 + 0.28 * k)})`, vineta: 0 };
+    default:
+      return { filtro: `contrast(${r(1 + 0.04 * k)}) saturate(${r(1 + 0.06 * k)})`, vineta: 0.08 * k };
+  }
+}
+
+/** Escala del latido en el segundo `t`: sube de golpe en cada tiempo fuerte y se relaja en ~0.35 s. Máximo ≈ 2 %. */
+export function escalaPorPulso(t: number, tiempos: number[] = [], intensidad = 0.5) {
+  let previo = -1;
+  for (const tiempo of tiempos) {
+    if (tiempo <= t) previo = tiempo;
+    else break;
+  }
+  if (previo < 0) return 1;
+  const k = Math.min(1, Math.max(0, intensidad));
+  return 1 + 0.02 * k * Math.exp(-(t - previo) / 0.12);
+}

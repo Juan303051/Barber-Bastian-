@@ -1,5 +1,8 @@
 // Panel de una sola pantalla: referencias, videos a crear y construcción en vivo.
 import { api, ErrorApi, subir } from "./api.js";
+import { abrirAjustesIA } from "./ajustes_ia.js";
+import { abrirEntrevista } from "./entrevista.js";
+import { crearSeccionMusica } from "./musica.js";
 import { crearTrabajo } from "./trabajo.js";
 import { anunciar, aviso, campoSimple, dialogo } from "./ui.js";
 import { el, esVideo, establecerProgreso, icono, iniciales, logo, poner } from "./util.js";
@@ -8,7 +11,7 @@ const ACTIVOS = new Set(["en_cola", "trabajando"]);
 const CREABLES = new Set(["borrador", "error", "cancelado", "interrumpido"]);
 
 export function montarPanel(raiz, usuario, { alSalir }) {
-  const estado = { marcas: [], referencias: [], trabajos: [] };
+  const estado = { marcas: [], referencias: [], trabajos: [], musica: [], ia: { disponible: false, activa: false } };
   const tarjetasTrabajo = new Map();
   const tarjetasReferencia = new Map();
   const subiendo = new Map(); // subidas de referencias en curso (todavía sin registro en el servidor)
@@ -24,6 +27,8 @@ export function montarPanel(raiz, usuario, { alSalir }) {
   const avatar = el("button", { type: "button", clase: "avatar", "aria-haspopup": "menu", "aria-expanded": "false", "aria-label": `Cuenta de ${usuario.nombre}`, texto: iniciales(usuario.nombre) });
   const menu = el("div", { clase: "menu-usuario vidrio", role: "menu", hidden: true },
     el("div", { clase: "quien" }, el("strong", { texto: usuario.nombre }), el("span", { texto: usuario.correo })),
+    el("button", { type: "button", role: "menuitem", datos: { accion: "director" } }, icono("director"), "Test del director…"),
+    el("button", { type: "button", role: "menuitem", datos: { accion: "ia" } }, icono("varita"), "Director con IA…"),
     el("button", { type: "button", role: "menuitem", datos: { accion: "anadir" } }, icono("persona"), "Añadir a una persona"),
     el("button", { type: "button", role: "menuitem", datos: { accion: "salir" } }, icono("salir"), "Salir"),
     el("button", { type: "button", role: "menuitem", clase: "rojo", datos: { accion: "eliminar" } }, icono("papelera"), "Eliminar mi cuenta…"));
@@ -47,18 +52,26 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     el("div", { clase: "tarjeta" }, zonaReferencias, entradaReferencias,
       el("div", { clase: "entrada-enlace" }, el("div", { clase: "entrada" }, campoEnlace), botonEnlace), errorEnlace, vacioReferencias, rejilla));
 
-  // ───────────────────────────────────────────────────────────── sección 2: videos
+  // ───────────────────────────────────────────────────────────── sección 2: música
+  const musica = crearSeccionMusica({ refrescar: () => refrescar(), quitarConDeshacer: (...a) => quitarConDeshacer(...a) });
+  const seccionMusica = el("section", { clase: "seccion", "aria-labelledby": "t-mus" },
+    el("div", { clase: "seccion-cabecera" }, el("div", { clase: "seccion-titulo" }, el("span", { clase: "numero", texto: "2", "aria-hidden": "true" }),
+      el("div", {}, el("h2", { id: "t-mus", clase: "titulo-2", texto: "Música" }), el("p", { clase: "seccion-sub", texto: "Tus canciones con licencia. Iris elige una por video y la mezcla bajo tu voz." })))),
+    musica.nodo);
+
+  // ───────────────────────────────────────────────────────────── sección 3: videos
+  const invitacion = el("div", { clase: "tarjeta invitacion", hidden: true });
   const listaTrabajos = el("div", { clase: "trabajos" });
   const botonAnadir = el("button", { type: "button", clase: "boton anadir" }, icono("mas"), "Añadir otro video");
   const seccionTrabajos = el("section", { clase: "seccion", "aria-labelledby": "t-vid" },
-    el("div", { clase: "seccion-cabecera" }, el("div", { clase: "seccion-titulo" }, el("span", { clase: "numero", texto: "2", "aria-hidden": "true" }),
+    el("div", { clase: "seccion-cabecera" }, el("div", { clase: "seccion-titulo" }, el("span", { clase: "numero", texto: "3", "aria-hidden": "true" }),
       el("div", {}, el("h2", { id: "t-vid", clase: "titulo-2", texto: "Tus videos" }), el("p", { clase: "seccion-sub", texto: "Añade todos los que necesites. Cada uno con sus propias instrucciones." })))),
-    listaTrabajos, botonAnadir);
+    invitacion, listaTrabajos, botonAnadir);
 
   const cabecera = el("div", { clase: "cabecera" },
     el("h1", { clase: "titulo-grande", texto: "Tus videos de marketing, listos sin editar." }),
     el("p", { texto: "Sube lo que grabaste, cuéntale a Iris cómo lo quieres y míralo construirse." }));
-  const principal = el("main", { id: "contenido", clase: "pagina" }, cabecera, seccionReferencias, seccionTrabajos);
+  const principal = el("main", { id: "contenido", clase: "pagina" }, cabecera, seccionReferencias, seccionMusica, seccionTrabajos);
   poner(raiz, barra, principal);
 
   // ───────────────────────────────────────────────────────────── menú de cuenta
@@ -72,8 +85,30 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     cerrarMenu();
     if (boton.dataset.accion === "salir") { await api.salir().catch(() => {}); alSalir(); }
     if (boton.dataset.accion === "anadir") anadirPersona();
+    if (boton.dataset.accion === "ia") abrirAjustesIA(() => refrescar()).catch((e) => aviso(e.message, { tipo: "error" }));
+    if (boton.dataset.accion === "director") hacerTest();
     if (boton.dataset.accion === "eliminar") eliminarCuenta();
   });
+
+  async function hacerTest(marcaInicial = "") {
+    const hecho = await abrirEntrevista({ marcas: estado.marcas, marcaInicial }).catch((e) => { aviso(e.message, { tipo: "error" }); return false; });
+    if (hecho) { try { localStorage.setItem("iris-invitacion-cerrada", "1"); } catch { /* sin almacenamiento */ } invitacion.hidden = true; }
+  }
+
+  async function mostrarInvitacion() {
+    let cerrada = false;
+    try { cerrada = localStorage.getItem("iris-invitacion-cerrada") === "1"; } catch { /* sin almacenamiento */ }
+    if (cerrada) return;
+    const perfil = await api.perfil("").catch(() => null);
+    if (!perfil || Object.keys(perfil.respuestas).length) return;
+    const empezar = el("button", { type: "button", clase: "boton principal" }, icono("director"), "Hacer el test (2 min)");
+    const luego = el("button", { type: "button", clase: "boton suave", texto: "Ahora no" });
+    empezar.addEventListener("click", () => hacerTest());
+    luego.addEventListener("click", () => { invitacion.hidden = true; try { localStorage.setItem("iris-invitacion-cerrada", "1"); } catch { /* sin almacenamiento */ } });
+    poner(invitacion, el("div", { clase: "invitacion-texto" }, el("strong", { texto: "Enséñale a Iris cómo es tu marca" }),
+      el("span", { texto: "Diez preguntas cortas: tono, ritmo, música, lo que nunca debe aparecer. Iris las usa en cada video, con o sin IA." })), el("div", { clase: "invitacion-acciones" }, empezar, luego));
+    invitacion.hidden = false;
+  }
 
   async function anadirPersona() {
     const nombre = campoSimple({ id: "nuevo-nombre", etiqueta: "Nombre", ejemplo: "Luis Gómez", autocompletar: "off" });
@@ -225,12 +260,12 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     ocultos.add(id);
     pintar();
     let deshecho = false;
-    aviso(`«${titulo || (tipo === "video" ? "El video" : "La referencia")}» se quitó.`, {
+    aviso(`«${titulo || (tipo === "video" ? "El video" : tipo === "musica" ? "La canción" : "La referencia")}» se quitó.`, {
       duracion: 6000, accion: { texto: "Deshacer", alHacer: () => { deshecho = true; ocultos.delete(id); pintar(); } },
     });
     setTimeout(async () => {
       if (deshecho) return;
-      try { await (tipo === "video" ? api.trabajoBorrar(id) : api.referenciaBorrar(id)); }
+      try { await (tipo === "video" ? api.trabajoBorrar(id) : tipo === "musica" ? api.musicaBorrar(id) : api.referenciaBorrar(id)); }
       catch (error) { ocultos.delete(id); aviso(error.message, { tipo: "error" }); }
       refrescar();
     }, 6200);
@@ -239,6 +274,8 @@ export function montarPanel(raiz, usuario, { alSalir }) {
   // ───────────────────────────────────────────────────────────── videos
   const contexto = {
     refrescar: () => refrescar(),
+    ia: () => estado.ia,
+    perfil: (marca) => hacerTest(marca || ""),
     quitar: (id) => quitarConDeshacer("video", id, estado.trabajos.find((t) => t.id === id)?.titulo),
     crear: async (id) => { try { await api.crear(id); await refrescar(); } catch (error) { aviso(error.message, { tipo: "error" }); } },
   };
@@ -292,7 +329,7 @@ export function montarPanel(raiz, usuario, { alSalir }) {
   document.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !botonCrear.disabled) botonCrear.click(); });
 
   // ───────────────────────────────────────────────────────────── actualización periódica
-  function pintar() { pintarReferencias(); pintarTrabajos(); pintarBarra(); }
+  function pintar() { pintarReferencias(); musica.pintar(estado.musica.filter((m) => !ocultos.has(m.id))); pintarTrabajos(); pintarBarra(); }
 
   function avisarCambios() {
     for (const t of estado.trabajos) {
@@ -311,6 +348,8 @@ export function montarPanel(raiz, usuario, { alSalir }) {
       const datos = await api.estado();
       estado.referencias = datos.referencias;
       estado.trabajos = datos.trabajos;
+      estado.musica = datos.musica || [];
+      estado.ia = datos.ia || estado.ia;
       avisarCambios();
       pintar();
     } catch (error) {
@@ -321,7 +360,7 @@ export function montarPanel(raiz, usuario, { alSalir }) {
   function programar() {
     clearTimeout(temporizador);
     if (detenido) return;
-    const trabajando = estado.trabajos.some((t) => ACTIVOS.has(t.estado)) || estado.referencias.some((r) => r.estado === "en_cola" || r.estado === "analizando");
+    const trabajando = estado.trabajos.some((t) => ACTIVOS.has(t.estado)) || estado.referencias.some((r) => r.estado === "en_cola" || r.estado === "analizando") || estado.musica.some((m) => m.estado === "en_cola" || m.estado === "analizando");
     temporizador = setTimeout(async () => { if (!document.hidden) await refrescar(); programar(); }, trabajando ? 800 : 4000);
   }
 
@@ -329,6 +368,7 @@ export function montarPanel(raiz, usuario, { alSalir }) {
     estado.marcas = await api.marcas().catch(() => []);
     await refrescar();
     if (estado.trabajos.length === 0) await nuevoTrabajo(false).catch(() => {});
+    mostrarInvitacion();
     programar();
   })();
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refrescar(); });

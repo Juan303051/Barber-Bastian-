@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { duracionPagina, formatearNumero, limpiar, normalizar, paginar, trayecto, valorContador, zoomEn } from "./logica.ts";
+import { duracionPagina, escalaPorPulso, filtroDeAcabado, formatearNumero, limpiar, normalizar, paginar, trayecto, valorContador, zoomEn } from "./logica.ts";
 import { duracionTotal } from "./tipos.ts";
 import type { PalabraT, Props } from "./tipos.ts";
 
@@ -74,3 +74,18 @@ assert.equal(duracionTotal({ ...base, escenas: [{ tipo: "gancho", duracion: 2 },
 assert.equal(duracionTotal(base, 30), 1);
 
 console.log("logica.test.mts: todo en orden");
+
+// Acabado de color: sin acabado no hay filtro; la intensidad 0 no cambia la imagen; cine oscurece los bordes y vibrante sube la saturación.
+assert.equal(filtroDeAcabado().filtro, "none");
+assert.equal(filtroDeAcabado({ look: "cine", intensidad: 0 }).filtro, "contrast(1) saturate(1) brightness(1)");
+assert.ok(filtroDeAcabado({ look: "cine", intensidad: 1 }).vineta > filtroDeAcabado({ look: "natural", intensidad: 1 }).vineta);
+assert.ok(filtroDeAcabado({ look: "vibrante", intensidad: 1 }).filtro.includes("saturate(1.28)"));
+assert.equal(filtroDeAcabado({ look: "vibrante", intensidad: 9 }).filtro, filtroDeAcabado({ look: "vibrante", intensidad: 1 }).filtro);
+
+// Latido: nada antes del primer tiempo fuerte, máximo del 2 % justo en él y relajado un segundo después.
+casi(escalaPorPulso(0.5, [1, 3]), 1);
+casi(escalaPorPulso(1, [1, 3], 1), 1.02);
+assert.ok(escalaPorPulso(1.1, [1, 3], 1) < 1.02 && escalaPorPulso(1.1, [1, 3], 1) > 1.001);
+assert.ok(escalaPorPulso(2, [1, 3], 1) - 1 < 0.0001);
+casi(escalaPorPulso(1, [1], 0), 1);
+casi(escalaPorPulso(5), 1);

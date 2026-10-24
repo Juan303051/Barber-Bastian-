@@ -36,8 +36,9 @@ def correr() -> list[str]:
     ok(leido["claves"] == ["dinero", "años", "gratis"], "palabras en grande")
     ok(leido["cta"] == "EDITOR" and leido["posicion"] == "abajo" and leido["acento"] == "#0A84FF", "cierre, posición y color")
     ok(leido["sugerencias"] == {"quitar_pausas": True}, "«quita las pausas» se ofrece como sugerencia, no se aplica solo")
-    ok(interprete.leer_prompt("Hazlo antes y después con música")["sugerencias"] == {"formato": "antes-despues"}, "antes y después")
-    ok(len(interprete.leer_prompt("pon música y transiciones y texto detrás de la persona")["pendiente"]) == 3, "avisa de lo que todavía no hace")
+    ok(interprete.leer_prompt("Hazlo antes y después con música")["sugerencias"] == {"formato": "antes-despues", "musica": True}, "antes y después, y música pedida")
+    ok(interprete.leer_prompt("quiero el video sin música")["sugerencias"] == {"musica": False}, "«sin música» se entiende como quitarla")
+    ok(len(interprete.leer_prompt("pon música y transiciones y texto detrás de la persona")["pendiente"]) == 2, "avisa de lo que todavía no hace (la música ya sí se hace)")
     ok(interprete.leer_prompt("edítalo rápido")["claves"] == [], "un texto sin órdenes no inventa nada")
     ok(interprete.leer_prompt("Comenta la palabra Masterclass en este reel")["cta"] == "MASTERCLASS", "palabra a comentar sin mayúsculas")
 
@@ -104,6 +105,53 @@ def correr() -> list[str]:
     ok(seguridad.host_permitido("localhost:8765", 8765) and not seguridad.host_permitido("evil.com", 8765) and not seguridad.host_permitido(None, 8765), "solo se atiende a localhost")
     ok(seguridad.origen_permitido("http://127.0.0.1:8765", None, 8765) and not seguridad.origen_permitido("http://127.0.0.1:9999", None, 8765)
        and not seguridad.origen_permitido("https://evil.com", None, 8765) and not seguridad.origen_permitido(None, "cross-site", 8765), "origen de las peticiones")
+
+    print("Celular por cable (con un adb de mentira)")
+    import contextlib
+    import io
+    import os
+    import stat
+    import tempfile
+    from . import arranque
+    with tempfile.TemporaryDirectory(prefix="iris-adb-") as carpeta:
+        registro = Path(carpeta) / "llamadas.txt"
+        falso = Path(carpeta) / "adb"
+        falso.write_text('#!/bin/sh\necho "$@" >> "' + str(registro) + '"\ncase "$*" in\n  *devices*) printf "List of devices attached\\n$FAKE_ADB_DISPOSITIVOS\\n" ;;\nesac\nexit 0\n')
+        falso.chmod(falso.stat().st_mode | stat.S_IEXEC)
+        original = arranque._buscar_adb
+        try:
+            arranque._buscar_adb = lambda: str(falso)
+            os.environ["FAKE_ADB_DISPOSITIVOS"] = "ABC123\\tdevice"
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                codigo = arranque.celular(abrir_servidor=False)
+            llamadas = registro.read_text().splitlines()
+            ok(codigo == 0 and any(l.startswith("-s ABC123 reverse tcp:") for l in llamadas), "con un celular listo, conecta el puerto por el cable (adb reverse)")
+            ok(any("shell am start" in l and "http://127.0.0.1:" in l for l in llamadas), "y le abre Iris en su navegador")
+            ok("Mantén esta ventana" not in salida.getvalue() and "127.0.0.1" in salida.getvalue(), "dice en claro qué hizo")
+            os.environ["FAKE_ADB_DISPOSITIVOS"] = "XYZ\\tunauthorized"
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                codigo = arranque.celular(abrir_servidor=False)
+            ok(codigo == 1 and "Permitir" in salida.getvalue(), "si el celular no autorizó, explica qué pulsar en la pantalla")
+            os.environ["FAKE_ADB_DISPOSITIVOS"] = ""
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                codigo = arranque.celular(abrir_servidor=False)
+            ok(codigo == 1 and "Depuración por USB" in salida.getvalue(), "si no hay celular, explica cómo conectarlo")
+            os.environ["FAKE_ADB_DISPOSITIVOS"] = "A1\\tdevice\\nB2\\tdevice"
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                codigo = arranque.celular(abrir_servidor=False)
+            ok(codigo == 1 and "varios celulares" in salida.getvalue(), "con dos celulares no adivina cuál usar")
+            arranque._buscar_adb = lambda: None
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                codigo = arranque.celular(abrir_servidor=False)
+            ok(codigo == 1 and "brew install" in salida.getvalue() and "iPhone" in salida.getvalue(), "sin adb, explica cómo instalarlo y avisa de que el iPhone es otra vía")
+        finally:
+            arranque._buscar_adb = original
+            os.environ.pop("FAKE_ADB_DISPOSITIVOS", None)
     return fallos
 
 

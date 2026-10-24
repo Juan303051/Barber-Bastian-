@@ -284,6 +284,34 @@ export const PalabraGigante = ({ capa, marca }: { capa: De<"palabra">; marca: Ma
   );
 };
 
+/** Título de gancho: hasta 7 palabras en varias líneas, dentro de un ancho seguro, con entrada y salida suaves. */
+export const Titulo = ({ capa, marca }: { capa: De<"titulo">; marca: Marca }) => {
+  const u = useUnidad();
+  const { width } = useVideoConfig();
+  const entrada = useEntrada();
+  const color = capa.color ?? marca.colores.texto;
+  return (
+    <div
+      style={{
+        width: width * 0.82,
+        textAlign: "center",
+        fontFamily: marca.fuente,
+        fontWeight: 900,
+        fontSize: (capa.tamano ?? 92) * u,
+        lineHeight: 1.05,
+        color,
+        textShadow: `0 ${4 * u}px ${18 * u}px rgba(0,0,0,.55)`,
+        WebkitTextStroke: `${9 * u}px rgba(0,0,0,.85)`,
+        paintOrder: "stroke fill",
+        textWrap: "balance",
+        transform: `translateY(${interpolate(entrada, [0, 1], [24 * u, 0])}px) scale(${interpolate(entrada, [0, 1], [0.92, 1])})`,
+      }}
+    >
+      {capa.texto}
+    </div>
+  );
+};
+
 export const VistaCapa = ({ capa, marca }: { capa: Capa; marca: Marca }) => {
   switch (capa.tipo) {
     case "contador":
@@ -298,5 +326,7 @@ export const VistaCapa = ({ capa, marca }: { capa: Capa; marca: Marca }) => {
       return <TextoCurvo capa={capa} marca={marca} />;
     case "palabra":
       return <PalabraGigante capa={capa} marca={marca} />;
+    case "titulo":
+      return <Titulo capa={capa} marca={marca} />;
   }
 };
